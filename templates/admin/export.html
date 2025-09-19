@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Експорт даних (Адмін){% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-file-excel me-2"></i>
+                        Експорт даних (Адміністратор)
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin_export_filtered') }}">
+                        <div class="row">
+                            <!-- Період -->
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-calendar me-2"></i>
+                                            Період
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <label for="date_from" class="form-label">Від дати:</label>
+                                                <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="date_to" class="form-label">До дати:</label>
+                                                <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+                                            </div>
+                                        </div>
+                                        <div class="mt-3">
+                                            <div class="btn-group" role="group">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setDateRange('today')">Сьогодні</button>
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setDateRange('week')">Тиждень</button>
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setDateRange('month')">Місяць</button>
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="setDateRange('all')">Весь період</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Фільтри -->
+                            <div class="col-md-6">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-filter me-2"></i>
+                                            Фільтри
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <!-- Заклади -->
+                                        <div class="mb-3">
+                                            <label for="restaurants" class="form-label">Заклади:</label>
+                                            <select class="form-select" id="restaurants" name="restaurants" multiple>
+                                                {% for restaurant in restaurants %}
+                                                <option value="{{ restaurant.id }}">{{ restaurant.restaurant_name }} ({{ restaurant.city }})</option>
+                                                {% endfor %}
+                                            </select>
+                                            <small class="form-text text-muted">Утримуйте Ctrl для вибору кількох закладів</small>
+                                        </div>
+
+                                        <!-- Офіціанти -->
+                                        <div class="mb-3">
+                                            <label for="waiters" class="form-label">Офіціанти:</label>
+                                            <select class="form-select" id="waiters" name="waiters" multiple>
+                                                {% for waiter in waiters %}
+                                                <option value="{{ waiter }}">{{ waiter }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <small class="form-text text-muted">Утримуйте Ctrl для вибору кількох офіціантів</small>
+                                        </div>
+
+                                        <!-- Міста -->
+                                        <div class="mb-3">
+                                            <label for="cities" class="form-label">Міста:</label>
+                                            <select class="form-select" id="cities" name="cities" multiple>
+                                                {% for city in cities %}
+                                                <option value="{{ city }}">{{ city }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+
+                                        <!-- Оцінка -->
+                                        <div class="mb-3">
+                                            <label for="rating_from" class="form-label">Оцінка від:</label>
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <select class="form-select" id="rating_from" name="rating_from">
+                                                        <option value="">Будь-яка</option>
+                                                        <option value="1">1</option>
+                                                        <option value="2">2</option>
+                                                        <option value="3">3</option>
+                                                        <option value="4">4</option>
+                                                        <option value="5">5</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-6">
+                                                    <select class="form-select" id="rating_to" name="rating_to">
+                                                        <option value="">до</option>
+                                                        <option value="1">1</option>
+                                                        <option value="2">2</option>
+                                                        <option value="3">3</option>
+                                                        <option value="4">4</option>
+                                                        <option value="5">5</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Тільки з коментарями -->
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="only_comments" name="only_comments">
+                                            <label class="form-check-label" for="only_comments">
+                                                Тільки відгуки з коментарями
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Формат експорту -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-file-export me-2"></i>
+                                            Формат експорту
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="export_format" id="format_excel" value="excel" checked>
+                                                    <label class="form-check-label" for="format_excel">
+                                                        <i class="fas fa-file-excel text-success me-2"></i>
+                                                        Excel (.xlsx)
+                                                    </label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="export_format" id="format_csv" value="csv">
+                                                    <label class="form-check-label" for="format_csv">
+                                                        <i class="fas fa-file-csv text-info me-2"></i>
+                                                        CSV (.csv)
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="include_summary" name="include_summary">
+                                                    <label class="form-check-label" for="include_summary">
+                                                        Включити зведену статистику
+                                                    </label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="group_by_restaurant" name="group_by_restaurant">
+                                                    <label class="form-check-label" for="group_by_restaurant">
+                                                        Групувати за закладами
+                                                    </label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="group_by_waiter" name="group_by_waiter">
+                                                    <label class="form-check-label" for="group_by_waiter">
+                                                        Групувати за офіціантами
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Кнопки -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between">
+                                    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                                        <i class="fas fa-arrow-left me-2"></i>
+                                        Назад
+                                    </a>
+                                    <div>
+                                        <button type="button" class="btn btn-info me-2" onclick="previewData()">
+                                            <i class="fas fa-eye me-2"></i>
+                                            Попередній перегляд
+                                        </button>
+                                        <button type="submit" class="btn btn-success">
+                                            <i class="fas fa-download me-2"></i>
+                                            Експортувати
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Попередній перегляд -->
+    <div class="row mt-4" id="preview-section" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-eye me-2"></i>
+                        Попередній перегляд даних
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="preview-content">
+                        <!-- Тут буде завантажений попередній перегляд -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function setDateRange(period) {
+    const today = new Date();
+    const dateFrom = document.getElementById('date_from');
+    const dateTo = document.getElementById('date_to');
+    
+    dateTo.value = today.toISOString().split('T')[0];
+    
+    switch(period) {
+        case 'today':
+            dateFrom.value = today.toISOString().split('T')[0];
+            break;
+        case 'week':
+            const weekAgo = new Date(today);
+            weekAgo.setDate(today.getDate() - 7);
+            dateFrom.value = weekAgo.toISOString().split('T')[0];
+            break;
+        case 'month':
+            const monthAgo = new Date(today);
+            monthAgo.setMonth(today.getMonth() - 1);
+            dateFrom.value = monthAgo.toISOString().split('T')[0];
+            break;
+        case 'all':
+            dateFrom.value = '';
+            dateTo.value = '';
+            break;
+    }
+}
+
+function previewData() {
+    const form = document.querySelector('form');
+    const formData = new FormData(form);
+    
+    // Показуємо секцію попереднього перегляду
+    document.getElementById('preview-section').style.display = 'block';
+    document.getElementById('preview-content').innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Завантаження...</div>';
+    
+    // Відправляємо запит на попередній перегляд
+    fetch('{{ url_for("admin_export_preview") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(html => {
+        document.getElementById('preview-content').innerHTML = html;
+    })
+    .catch(error => {
+        document.getElementById('preview-content').innerHTML = '<div class="alert alert-danger">Помилка завантаження попереднього перегляду</div>';
+    });
+}
+
+// Автоматично встановлюємо поточний місяць при завантаженні
+document.addEventListener('DOMContentLoaded', function() {
+    if (!document.getElementById('date_from').value && !document.getElementById('date_to').value) {
+        setDateRange('month');
+    }
+});
+</script>
+{% endblock %}

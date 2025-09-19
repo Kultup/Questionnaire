@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, make_response, render_template_string
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from functools import wraps
 from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 import os
+import sys
 import qrcode
 import io
 import base64
@@ -14,6 +15,9 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, and_
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
+from openpyxl.utils import get_column_letter
+import csv
+from io import StringIO
 import logging
 from logging.handlers import RotatingFileHandler
 import smtplib
@@ -49,7 +53,13 @@ app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///instance/feedback_system.db')
+
+# Use absolute path for SQLite database
+basedir = os.path.abspath(os.path.dirname(__file__))
+db_file_path = os.path.join(basedir, 'instance', 'feedback_system.db')
+# Ensure proper URI format for Windows
+default_db_path = f"sqlite:///{db_file_path.replace(os.sep, '/')}"
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', default_db_path)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Disable CSRF protection
@@ -107,9 +117,33 @@ login_manager.login_view = 'login'
 login_manager.login_message = 'Будь ласка, увійдіть для доступу до цієї сторінки.'
 login_manager.login_message_category = 'info'
 
-# Create tables on first run
-with app.app_context():
-    db.create_all()
+def init_database():
+    """Initialize the database with tables"""
+    try:
+        # Ensure instance directory exists
+        instance_dir = os.path.dirname(db_file_path)
+        if not os.path.exists(instance_dir):
+            os.makedirs(instance_dir)
+            print(f"📁 Створено директорію: {instance_dir}")
+        
+        with app.app_context():
+            # Create all tables
+            db.create_all()
+            print("✅ Таблиці бази даних створено успішно!")
+            
+            # Check if database file was created
+            if os.path.exists(db_file_path):
+                file_size = os.path.getsize(db_file_path)
+                print(f"📊 База даних: {db_file_path}")
+                print(f"📏 Розмір файлу: {file_size} байт")
+            else:
+                print("⚠️ Файл бази даних не було створено!")
+                
+    except Exception as e:
+        print(f"❌ Помилка ініціалізації бази даних: {e}")
+        return False
+    
+    return True
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -1270,21 +1304,15 @@ def survey(token):
         
         db.session.commit()
         
-        # Send to Telegram (both private and group)
-        if user.bot_token:
+        # Send to Telegram group only
+        if user.bot_token and user.telegram_group_enabled and user.telegram_group_id:
             telegram_service = TelegramService(user.bot_token)
             
-            # Send to private chat (existing functionality)
-            success, error_message = send_telegram_message(user.bot_token, telegram_message)
-            if not success:
-                print(f"Failed to send Telegram message to private chat for restaurant: {user.restaurant_name} (ID: {user.id}). Error: {error_message}")
-            
-            # Send to Telegram group if configured
-            if user.telegram_group_enabled and user.telegram_group_id:
-                group_result = telegram_service.send_message_to_chat(user.telegram_group_id, telegram_message)
-                if not group_result['success']:
-                    print(f"Failed to send Telegram message to group for restaurant: {user.restaurant_name} (ID: {user.id}). Error: {group_result['error']}")
-                    # Log the error but don't show to survey user
+            # Send to Telegram group
+            group_result = telegram_service.send_message_to_chat(user.telegram_group_id, telegram_message)
+            if not group_result['success']:
+                print(f"Failed to send Telegram message to group for restaurant: {user.restaurant_name} (ID: {user.id}). Error: {group_result['error']}")
+                # Log the error but don't show to survey user
         
         # Send to Email
         if user.email_enabled and user.email_address:
@@ -1815,10 +1843,686 @@ def user_export():
     
     return response
 
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+# Enhanced export routes
+@app.route('/user/export-page')
+@manager_required
+def user_export_page():
+    """Сторінка з фільтрами для експорту (користувач)"""
+    # Отримуємо унікальних офіціантів для поточного користувача
+    waiters = db.session.query(Survey.waiter_name).filter_by(user_id=current_user.id).distinct().all()
+    waiters = [w[0] for w in waiters if w[0]]
+    
+    return render_template('user/export.html', waiters=waiters)
 
+@app.route('/user/export-filtered', methods=['POST'])
+@manager_required
+def user_export_filtered():
+    """Фільтрований експорт для користувача"""
+    try:
+        # Отримуємо параметри фільтрів
+        date_from = request.form.get('date_from')
+        date_to = request.form.get('date_to')
+        waiters = request.form.getlist('waiters')
+        rating_from = request.form.get('rating_from')
+        rating_to = request.form.get('rating_to')
+        only_comments = request.form.get('only_comments') == 'on'
+        export_format = request.form.get('export_format', 'excel')
+        include_summary = request.form.get('include_summary') == 'on'
+        group_by_waiter = request.form.get('group_by_waiter') == 'on'
+        
+        # Базовий запит
+        query = Survey.query.filter_by(user_id=current_user.id)
+        
+        # Застосовуємо фільтри
+        if date_from:
+            query = query.filter(Survey.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
+        if date_to:
+            date_to_end = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(Survey.created_at < date_to_end)
+        if waiters:
+            query = query.filter(Survey.waiter_name.in_(waiters))
+        if rating_from:
+            query = query.filter(Survey.overall_score >= int(rating_from))
+        if rating_to:
+            query = query.filter(Survey.overall_score <= int(rating_to))
+        
+        surveys = query.all()
+        
+        if export_format == 'csv':
+            return export_to_csv(surveys, current_user, only_comments, include_summary, group_by_waiter)
+        else:
+            return export_to_excel(surveys, current_user, only_comments, include_summary, group_by_waiter)
+            
+    except Exception as e:
+        flash(f'Помилка при експорті: {str(e)}', 'error')
+        return redirect(url_for('user_export_page'))
+
+@app.route('/user/export-preview', methods=['POST'])
+@manager_required
+def user_export_preview():
+    """Попередній перегляд даних для експорту (користувач)"""
+    try:
+        # Отримуємо параметри фільтрів (аналогічно до user_export_filtered)
+        date_from = request.form.get('date_from')
+        date_to = request.form.get('date_to')
+        waiters = request.form.getlist('waiters')
+        rating_from = request.form.get('rating_from')
+        rating_to = request.form.get('rating_to')
+        only_comments = request.form.get('only_comments') == 'on'
+        
+        # Базовий запит
+        query = Survey.query.filter_by(user_id=current_user.id)
+        
+        # Застосовуємо фільтри
+        if date_from:
+            query = query.filter(Survey.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
+        if date_to:
+            date_to_end = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(Survey.created_at < date_to_end)
+        if waiters:
+            query = query.filter(Survey.waiter_name.in_(waiters))
+        if rating_from:
+            query = query.filter(Survey.overall_score >= int(rating_from))
+        if rating_to:
+            query = query.filter(Survey.overall_score <= int(rating_to))
+        
+        surveys = query.limit(10).all()  # Обмежуємо для попереднього перегляду
+        
+        # Підраховуємо статистику
+        total_surveys = query.count()
+        avg_rating = db.session.query(func.avg(Survey.overall_score)).filter(
+            Survey.id.in_([s.id for s in query.all()])
+        ).scalar() or 0
+        
+        preview_data = []
+        for survey in surveys:
+            answers = Answer.query.filter_by(survey_id=survey.id).join(Question).all()
+            if answers:
+                for answer in answers:
+                    if only_comments and not answer.comment:
+                        continue
+                    preview_data.append({
+                        'date': survey.created_at.strftime('%Y-%m-%d %H:%M'),
+                        'waiter': survey.waiter_name,
+                        'rating': survey.overall_score,
+                        'question': answer.question.question_text,
+                        'answer': 'Так' if answer.answer else 'Ні',
+                        'comment': answer.comment or ''
+                    })
+        
+        return render_template_string('''
+        <div class="alert alert-info">
+            <strong>Статистика:</strong> Знайдено {{ total_surveys }} відгуків, середня оцінка: {{ "%.1f"|format(avg_rating) }}
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Офіціант</th>
+                        <th>Оцінка</th>
+                        <th>Питання</th>
+                        <th>Відповідь</th>
+                        <th>Коментар</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview_data %}
+                    <tr>
+                        <td>{{ row.date }}</td>
+                        <td>{{ row.waiter }}</td>
+                        <td>{{ row.rating }}</td>
+                        <td>{{ row.question }}</td>
+                        <td>{{ row.answer }}</td>
+                        <td>{{ row.comment }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if preview_data|length == 10 %}
+        <div class="alert alert-warning">
+            Показано перші 10 записів. Всього буде експортовано {{ total_surveys }} записів.
+        </div>
+        {% endif %}
+        ''', preview_data=preview_data, total_surveys=total_surveys, avg_rating=avg_rating)
+        
+    except Exception as e:
+        return f'<div class="alert alert-danger">Помилка: {str(e)}</div>'
+
+@app.route('/admin/export-page')
+@admin_required
+def admin_export_page():
+    """Сторінка з фільтрами для експорту (адмін)"""
+    # Отримуємо дані для фільтрів
+    restaurants = User.query.filter(User.role.in_(['manager', 'user'])).all()
+    waiters = db.session.query(Survey.waiter_name).distinct().all()
+    waiters = [w[0] for w in waiters if w[0]]
+    cities = db.session.query(User.city).distinct().all()
+    cities = [c[0] for c in cities if c[0]]
+    
+    return render_template('admin/export.html', 
+                         restaurants=restaurants, 
+                         waiters=waiters, 
+                         cities=cities)
+
+@app.route('/admin/export-filtered', methods=['POST'])
+@admin_required
+def admin_export_filtered():
+    """Фільтрований експорт для адміністратора"""
+    try:
+        # Отримуємо параметри фільтрів
+        date_from = request.form.get('date_from')
+        date_to = request.form.get('date_to')
+        restaurants = request.form.getlist('restaurants')
+        waiters = request.form.getlist('waiters')
+        cities = request.form.getlist('cities')
+        rating_from = request.form.get('rating_from')
+        rating_to = request.form.get('rating_to')
+        only_comments = request.form.get('only_comments') == 'on'
+        export_format = request.form.get('export_format', 'excel')
+        include_summary = request.form.get('include_summary') == 'on'
+        group_by_restaurant = request.form.get('group_by_restaurant') == 'on'
+        group_by_waiter = request.form.get('group_by_waiter') == 'on'
+        
+        # Базовий запит
+        query = Survey.query.join(User)
+        
+        # Застосовуємо фільтри
+        if date_from:
+            query = query.filter(Survey.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
+        if date_to:
+            date_to_end = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(Survey.created_at < date_to_end)
+        if restaurants:
+            query = query.filter(User.id.in_(restaurants))
+        if waiters:
+            query = query.filter(Survey.waiter_name.in_(waiters))
+        if cities:
+            query = query.filter(User.city.in_(cities))
+        if rating_from:
+            query = query.filter(Survey.overall_score >= int(rating_from))
+        if rating_to:
+            query = query.filter(Survey.overall_score <= int(rating_to))
+        
+        surveys = query.all()
+        
+        if export_format == 'csv':
+            return export_to_csv_admin(surveys, only_comments, include_summary, group_by_restaurant, group_by_waiter)
+        else:
+            return export_to_excel_admin(surveys, only_comments, include_summary, group_by_restaurant, group_by_waiter)
+            
+    except Exception as e:
+        flash(f'Помилка при експорті: {str(e)}', 'error')
+        return redirect(url_for('admin_export_page'))
+
+@app.route('/admin/export-preview', methods=['POST'])
+@admin_required
+def admin_export_preview():
+    """Попередній перегляд даних для експорту (адмін)"""
+    try:
+        # Отримуємо параметри фільтрів (аналогічно до admin_export_filtered)
+        date_from = request.form.get('date_from')
+        date_to = request.form.get('date_to')
+        restaurants = request.form.getlist('restaurants')
+        waiters = request.form.getlist('waiters')
+        cities = request.form.getlist('cities')
+        rating_from = request.form.get('rating_from')
+        rating_to = request.form.get('rating_to')
+        only_comments = request.form.get('only_comments') == 'on'
+        
+        # Базовий запит
+        query = Survey.query.join(User)
+        
+        # Застосовуємо фільтри
+        if date_from:
+            query = query.filter(Survey.created_at >= datetime.strptime(date_from, '%Y-%m-%d'))
+        if date_to:
+            date_to_end = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
+            query = query.filter(Survey.created_at < date_to_end)
+        if restaurants:
+            query = query.filter(User.id.in_(restaurants))
+        if waiters:
+            query = query.filter(Survey.waiter_name.in_(waiters))
+        if cities:
+            query = query.filter(User.city.in_(cities))
+        if rating_from:
+            query = query.filter(Survey.overall_score >= int(rating_from))
+        if rating_to:
+            query = query.filter(Survey.overall_score <= int(rating_to))
+        
+        surveys = query.limit(10).all()  # Обмежуємо для попереднього перегляду
+        
+        # Підраховуємо статистику
+        total_surveys = query.count()
+        avg_rating = db.session.query(func.avg(Survey.overall_score)).filter(
+            Survey.id.in_([s.id for s in query.all()])
+        ).scalar() or 0
+        
+        preview_data = []
+        for survey in surveys:
+            answers = Answer.query.filter_by(survey_id=survey.id).join(Question).all()
+            if answers:
+                for answer in answers:
+                    if only_comments and not answer.comment:
+                        continue
+                    preview_data.append({
+                        'date': survey.created_at.strftime('%Y-%m-%d %H:%M'),
+                        'restaurant': survey.user.restaurant_name,
+                        'city': survey.user.city,
+                        'waiter': survey.waiter_name,
+                        'rating': survey.overall_score,
+                        'question': answer.question.question_text,
+                        'answer': 'Так' if answer.answer else 'Ні',
+                        'comment': answer.comment or ''
+                    })
+        
+        return render_template_string('''
+        <div class="alert alert-info">
+            <strong>Статистика:</strong> Знайдено {{ total_surveys }} відгуків, середня оцінка: {{ "%.1f"|format(avg_rating) }}
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Заклад</th>
+                        <th>Місто</th>
+                        <th>Офіціант</th>
+                        <th>Оцінка</th>
+                        <th>Питання</th>
+                        <th>Відповідь</th>
+                        <th>Коментар</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview_data %}
+                    <tr>
+                        <td>{{ row.date }}</td>
+                        <td>{{ row.restaurant }}</td>
+                        <td>{{ row.city }}</td>
+                        <td>{{ row.waiter }}</td>
+                        <td>{{ row.rating }}</td>
+                        <td>{{ row.question }}</td>
+                        <td>{{ row.answer }}</td>
+                        <td>{{ row.comment }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if preview_data|length == 10 %}
+        <div class="alert alert-warning">
+            Показано перші 10 записів. Всього буде експортовано {{ total_surveys }} записів.
+        </div>
+        {% endif %}
+        ''', preview_data=preview_data, total_surveys=total_surveys, avg_rating=avg_rating)
+        
+    except Exception as e:
+        return f'<div class="alert alert-danger">Помилка: {str(e)}</div>'
+
+# Enhanced export functions
+def export_to_excel(surveys, user, only_comments=False, include_summary=False, group_by_waiter=False):
+    """Покращений експорт в Excel з підтримкою фільтрів"""
+    try:
+        wb = openpyxl.Workbook()
+        
+        if group_by_waiter:
+            # Групуємо по офіціантах
+            waiters_data = {}
+            for survey in surveys:
+                waiter = survey.waiter_name or 'Невідомий офіціант'
+                if waiter not in waiters_data:
+                    waiters_data[waiter] = []
+                waiters_data[waiter].append(survey)
+            
+            # Видаляємо стандартний лист
+            wb.remove(wb.active)
+            
+            for waiter, waiter_surveys in waiters_data.items():
+                ws = wb.create_sheet(title=waiter[:31])  # Excel обмежує назву листа до 31 символу
+                _fill_worksheet(ws, waiter_surveys, only_comments, f"Звіт по офіціанту: {waiter}")
+        else:
+            ws = wb.active
+            ws.title = "Експорт даних"
+            _fill_worksheet(ws, surveys, only_comments, f"Звіт по закладу: {user.restaurant_name}")
+        
+        # Додаємо лист зі статистикою
+        if include_summary:
+            summary_ws = wb.create_sheet(title="Статистика")
+            _fill_summary_worksheet(summary_ws, surveys)
+        
+        # Створюємо відповідь
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        response = make_response(output.read())
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        response.headers['Content-Disposition'] = f'attachment; filename=export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        
+        return response
+        
+    except Exception as e:
+        flash(f'Помилка при створенні Excel файлу: {str(e)}', 'error')
+        return redirect(url_for('user_export_page'))
+
+def export_to_csv(surveys, user, only_comments=False, include_summary=False, group_by_waiter=False):
+    """Експорт в CSV формат"""
+    try:
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Заголовки
+        headers = ['Дата', 'Офіціант', 'Загальна оцінка', 'Питання', 'Відповідь', 'Коментар']
+        writer.writerow(headers)
+        
+        # Дані
+        for survey in surveys:
+            answers = Answer.query.filter_by(survey_id=survey.id).join(Question).all()
+            if answers:
+                for answer in answers:
+                    if only_comments and not answer.comment:
+                        continue
+                    writer.writerow([
+                        survey.created_at.strftime('%Y-%m-%d %H:%M'),
+                        survey.waiter_name or '',
+                        survey.overall_score,
+                        answer.question.question_text,
+                        'Так' if answer.answer else 'Ні',
+                        answer.comment or ''
+                    ])
+        
+        # Створюємо відповідь
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        response.headers['Content-Disposition'] = f'attachment; filename=export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        
+        return response
+        
+    except Exception as e:
+        flash(f'Помилка при створенні CSV файлу: {str(e)}', 'error')
+        return redirect(url_for('user_export_page'))
+
+def export_to_excel_admin(surveys, only_comments=False, include_summary=False, group_by_restaurant=False, group_by_waiter=False):
+    """Покращений експорт в Excel для адміністратора"""
+    try:
+        wb = openpyxl.Workbook()
+        
+        if group_by_restaurant:
+            # Групуємо по закладах
+            restaurants_data = {}
+            for survey in surveys:
+                restaurant = survey.user.restaurant_name or 'Невідомий заклад'
+                if restaurant not in restaurants_data:
+                    restaurants_data[restaurant] = []
+                restaurants_data[restaurant].append(survey)
+            
+            # Видаляємо стандартний лист
+            wb.remove(wb.active)
+            
+            for restaurant, restaurant_surveys in restaurants_data.items():
+                ws = wb.create_sheet(title=restaurant[:31])
+                _fill_worksheet_admin(ws, restaurant_surveys, only_comments, f"Звіт по закладу: {restaurant}")
+                
+        elif group_by_waiter:
+            # Групуємо по офіціантах
+            waiters_data = {}
+            for survey in surveys:
+                waiter = survey.waiter_name or 'Невідомий офіціант'
+                if waiter not in waiters_data:
+                    waiters_data[waiter] = []
+                waiters_data[waiter].append(survey)
+            
+            # Видаляємо стандартний лист
+            wb.remove(wb.active)
+            
+            for waiter, waiter_surveys in waiters_data.items():
+                ws = wb.create_sheet(title=waiter[:31])
+                _fill_worksheet_admin(ws, waiter_surveys, only_comments, f"Звіт по офіціанту: {waiter}")
+        else:
+            ws = wb.active
+            ws.title = "Експорт даних"
+            _fill_worksheet_admin(ws, surveys, only_comments, "Загальний звіт")
+        
+        # Додаємо лист зі статистикою
+        if include_summary:
+            summary_ws = wb.create_sheet(title="Статистика")
+            _fill_summary_worksheet_admin(summary_ws, surveys)
+        
+        # Створюємо відповідь
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        response = make_response(output.read())
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        response.headers['Content-Disposition'] = f'attachment; filename=admin_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        
+        return response
+        
+    except Exception as e:
+        flash(f'Помилка при створенні Excel файлу: {str(e)}', 'error')
+        return redirect(url_for('admin_export_page'))
+
+def export_to_csv_admin(surveys, only_comments=False, include_summary=False, group_by_restaurant=False, group_by_waiter=False):
+    """Експорт в CSV формат для адміністратора"""
+    try:
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Заголовки
+        headers = ['Дата', 'Заклад', 'Місто', 'Офіціант', 'Загальна оцінка', 'Питання', 'Відповідь', 'Коментар']
+        writer.writerow(headers)
+        
+        # Дані
+        for survey in surveys:
+            answers = Answer.query.filter_by(survey_id=survey.id).join(Question).all()
+            if answers:
+                for answer in answers:
+                    if only_comments and not answer.comment:
+                        continue
+                    writer.writerow([
+                        survey.created_at.strftime('%Y-%m-%d %H:%M'),
+                        survey.user.restaurant_name or '',
+                        survey.user.city or '',
+                        survey.waiter_name or '',
+                        survey.overall_score,
+                        answer.question.question_text,
+                        'Так' if answer.answer else 'Ні',
+                        answer.comment or ''
+                    ])
+        
+        # Створюємо відповідь
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        response.headers['Content-Disposition'] = f'attachment; filename=admin_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        
+        return response
+        
+    except Exception as e:
+        flash(f'Помилка при створенні CSV файлу: {str(e)}', 'error')
+        return redirect(url_for('admin_export_page'))
+
+def _fill_worksheet(ws, surveys, only_comments, title):
+    """Заповнює робочий лист даними для користувача"""
+    # Заголовок
+    ws['A1'] = title
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.merge_cells('A1:F1')
+    
+    # Заголовки стовпців
+    headers = ['Дата', 'Офіціант', 'Загальна оцінка', 'Питання', 'Відповідь', 'Коментар']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=3, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+    
+    # Дані
+    row = 4
+    for survey in surveys:
+        answers = Answer.query.filter_by(survey_id=survey.id).join(Question).all()
+        if answers:
+            for answer in answers:
+                if only_comments and not answer.comment:
+                    continue
+                ws.cell(row=row, column=1, value=survey.created_at.strftime('%Y-%m-%d %H:%M'))
+                ws.cell(row=row, column=2, value=survey.waiter_name or '')
+                ws.cell(row=row, column=3, value=survey.overall_score)
+                ws.cell(row=row, column=4, value=answer.question.question_text)
+                ws.cell(row=row, column=5, value='Так' if answer.answer else 'Ні')
+                ws.cell(row=row, column=6, value=answer.comment or '')
+                row += 1
+    
+    # Автоширина стовпців
+    for column in ws.columns:
+        max_length = 0
+        column_letter = get_column_letter(column[0].column)
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column_letter].width = adjusted_width
+
+def _fill_worksheet_admin(ws, surveys, only_comments, title):
+    """Заповнює робочий лист даними для адміністратора"""
+    # Заголовок
+    ws['A1'] = title
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.merge_cells('A1:H1')
+    
+    # Заголовки стовпців
+    headers = ['Дата', 'Заклад', 'Місто', 'Офіціант', 'Загальна оцінка', 'Питання', 'Відповідь', 'Коментар']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=3, column=col, value=header)
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+    
+    # Дані
+    row = 4
+    for survey in surveys:
+        answers = Answer.query.filter_by(survey_id=survey.id).join(Question).all()
+        if answers:
+            for answer in answers:
+                if only_comments and not answer.comment:
+                    continue
+                ws.cell(row=row, column=1, value=survey.created_at.strftime('%Y-%m-%d %H:%M'))
+                ws.cell(row=row, column=2, value=survey.user.restaurant_name or '')
+                ws.cell(row=row, column=3, value=survey.user.city or '')
+                ws.cell(row=row, column=4, value=survey.waiter_name or '')
+                ws.cell(row=row, column=5, value=survey.overall_score)
+                ws.cell(row=row, column=6, value=answer.question.question_text)
+                ws.cell(row=row, column=7, value='Так' if answer.answer else 'Ні')
+                ws.cell(row=row, column=8, value=answer.comment or '')
+                row += 1
+    
+    # Автоширина стовпців
+    for column in ws.columns:
+        max_length = 0
+        column_letter = get_column_letter(column[0].column)
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column_letter].width = adjusted_width
+
+def _fill_summary_worksheet(ws, surveys):
+    """Заповнює лист статистики для користувача"""
+    ws.title = "Статистика"
+    
+    # Заголовок
+    ws['A1'] = "Статистика відгуків"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.merge_cells('A1:B1')
+    
+    # Загальна статистика
+    total_surveys = len(surveys)
+    avg_rating = sum(s.overall_score for s in surveys) / total_surveys if total_surveys > 0 else 0
+    
+    ws['A3'] = "Загальна кількість відгуків:"
+    ws['B3'] = total_surveys
+    ws['A4'] = "Середня оцінка:"
+    ws['B4'] = round(avg_rating, 2)
+    
+    # Статистика по офіціантах
+    waiter_stats = {}
+    for survey in surveys:
+        waiter = survey.waiter_name or 'Невідомий'
+        if waiter not in waiter_stats:
+            waiter_stats[waiter] = {'count': 0, 'total_rating': 0}
+        waiter_stats[waiter]['count'] += 1
+        waiter_stats[waiter]['total_rating'] += survey.overall_score
+    
+    ws['A6'] = "Статистика по офіціантах:"
+    ws['A6'].font = Font(bold=True)
+    ws['A7'] = "Офіціант"
+    ws['B7'] = "Кількість відгуків"
+    ws['C7'] = "Середня оцінка"
+    
+    row = 8
+    for waiter, stats in waiter_stats.items():
+        ws.cell(row=row, column=1, value=waiter)
+        ws.cell(row=row, column=2, value=stats['count'])
+        ws.cell(row=row, column=3, value=round(stats['total_rating'] / stats['count'], 2))
+        row += 1
+
+def _fill_summary_worksheet_admin(ws, surveys):
+    """Заповнює лист статистики для адміністратора"""
+    ws.title = "Статистика"
+    
+    # Заголовок
+    ws['A1'] = "Загальна статистика відгуків"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws.merge_cells('A1:D1')
+    
+    # Загальна статистика
+    total_surveys = len(surveys)
+    avg_rating = sum(s.overall_score for s in surveys) / total_surveys if total_surveys > 0 else 0
+    
+    ws['A3'] = "Загальна кількість відгуків:"
+    ws['B3'] = total_surveys
+    ws['A4'] = "Середня оцінка:"
+    ws['B4'] = round(avg_rating, 2)
+    
+    # Статистика по закладах
+    restaurant_stats = {}
+    for survey in surveys:
+        restaurant = survey.user.restaurant_name or 'Невідомий заклад'
+        if restaurant not in restaurant_stats:
+            restaurant_stats[restaurant] = {'count': 0, 'total_rating': 0}
+        restaurant_stats[restaurant]['count'] += 1
+        restaurant_stats[restaurant]['total_rating'] += survey.overall_score
+    
+    ws['A6'] = "Статистика по закладах:"
+    ws['A6'].font = Font(bold=True)
+    ws['A7'] = "Заклад"
+    ws['B7'] = "Кількість відгуків"
+    ws['C7'] = "Середня оцінка"
+    
+    row = 8
+    for restaurant, stats in restaurant_stats.items():
+        ws.cell(row=row, column=1, value=restaurant)
+        ws.cell(row=row, column=2, value=stats['count'])
+        ws.cell(row=row, column=3, value=round(stats['total_rating'] / stats['count'], 2))
+        row += 1
+
+if __name__ == '__main__':
+    print("🚀 Запуск Flask додатку...")
+    
+    # Автоматична ініціалізація бази даних
+    print("🔧 Ініціалізація бази даних...")
+    if init_database():
+        print("🎉 База даних готова до роботи!")
+    else:
+        print("❌ Помилка ініціалізації бази даних!")
+        sys.exit(1)
+    
     # Production vs Development configuration
     is_production = os.getenv('FLASK_ENV') == 'production'
     
