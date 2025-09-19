@@ -57,8 +57,10 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
 # Use absolute path for SQLite database
 basedir = os.path.abspath(os.path.dirname(__file__))
 db_file_path = os.path.join(basedir, 'instance', 'feedback_system.db')
-# Ensure proper URI format for Windows
-default_db_path = f"sqlite:///{db_file_path.replace(os.sep, '/')}"
+# Ensure proper URI format for Windows - use pathlib for better cross-platform support
+from pathlib import Path
+db_path_obj = Path(db_file_path)
+default_db_path = f"sqlite:///{db_path_obj.as_posix()}"
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', default_db_path)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -120,11 +122,22 @@ login_manager.login_message_category = 'info'
 def init_database():
     """Initialize the database with tables"""
     try:
+        # Debug information
+        print(f"🔍 Database URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        print(f"🔍 Database file path: {db_file_path}")
+        
         # Ensure instance directory exists
         instance_dir = os.path.dirname(db_file_path)
         if not os.path.exists(instance_dir):
             os.makedirs(instance_dir)
             print(f"📁 Створено директорію: {instance_dir}")
+        else:
+            print(f"📁 Директорія вже існує: {instance_dir}")
+        
+        # Check directory permissions
+        import stat
+        dir_stat = os.stat(instance_dir)
+        print(f"🔐 Права доступу до директорії: {oct(dir_stat.st_mode)}")
         
         with app.app_context():
             # Create all tables
@@ -141,6 +154,9 @@ def init_database():
                 
     except Exception as e:
         print(f"❌ Помилка ініціалізації бази даних: {e}")
+        import traceback
+        print(f"🔍 Детальна інформація про помилку:")
+        traceback.print_exc()
         return False
     
     return True
