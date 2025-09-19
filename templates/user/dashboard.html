@@ -31,8 +31,11 @@
                         Дії
                     </button>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="{{ url_for('user_export') }}">
+                        <li><a class="dropdown-item" href="{{ url_for('user_export_page') }}">
                             <i class="fas fa-file-excel me-2"></i>Експорт даних
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('user_export') }}">
+                            <i class="fas fa-download me-2"></i>Швидкий експорт
                         </a></li>
                         <li><a class="dropdown-item" href="{{ url_for('user_filters') }}">
                             <i class="fas fa-filter me-2"></i>Фільтри

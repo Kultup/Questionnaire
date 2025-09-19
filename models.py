@@ -16,7 +16,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(120), nullable=False)
     restaurant_name = db.Column(db.String(200), nullable=False)
     city = db.Column(db.String(100), nullable=False)
-    bot_token = db.Column(db.String(200), nullable=False)
+    bot_token = db.Column(db.String(200), nullable=True)
     telegram_group_id = db.Column(db.String(50), nullable=True)  # ID групи Telegram для сповіщень
     telegram_group_enabled = db.Column(db.Boolean, default=False, nullable=False)  # Увімкнути групові сповіщення
     unique_token = db.Column(db.String(32), unique=True, nullable=False)
