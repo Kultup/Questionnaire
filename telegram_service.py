@@ -111,6 +111,156 @@ class TelegramService:
                 'error': f'Помилка з\'єднання: {str(e)}'
             }
     
+    def get_available_groups(self) -> Dict[str, Any]:
+        """
+        Отримання списку доступних груп з оновлень бота
+        
+        Returns:
+            Dict з інформацією про доступні групи
+        """
+        try:
+            # Спочатку отримуємо всі оновлення
+            response = requests.get(
+                f"{self.base_url}/getUpdates",
+                params={'limit': 100},
+                timeout=10
+            )
+            
+            if response.status_code != 200:
+                return {
+                    'success': False,
+                    'groups': [],
+                    'error': f'HTTP {response.status_code}: {response.text}',
+                    'instructions': 'Перевірте токен бота та з\'єднання з інтернетом.'
+                }
+            
+            updates_data = response.json()
+            if not updates_data.get('ok'):
+                return {
+                    'success': False,
+                    'groups': [],
+                    'error': updates_data.get('description', 'Невідома помилка'),
+                    'instructions': 'Перевірте правильність токена бота.'
+                }
+            
+            updates = updates_data.get('result', [])
+            groups = {}
+            
+            # Обробляємо оновлення для пошуку груп
+            for update in updates:
+                chat = None
+                
+                # Перевіряємо різні типи оновлень
+                if 'message' in update:
+                    chat = update['message'].get('chat')
+                elif 'edited_message' in update:
+                    chat = update['edited_message'].get('chat')
+                elif 'channel_post' in update:
+                    chat = update['channel_post'].get('chat')
+                elif 'edited_channel_post' in update:
+                    chat = update['edited_channel_post'].get('chat')
+                elif 'my_chat_member' in update:
+                    # Обробляємо зміни статусу бота в чаті
+                    chat = update['my_chat_member'].get('chat')
+                
+                if chat and chat.get('type') in ['group', 'supergroup']:
+                    chat_id = str(chat.get('id'))
+                    chat_title = chat.get('title', 'Без назви')
+                    chat_type = chat.get('type')
+                    
+                    # Зберігаємо унікальні групи
+                    if chat_id not in groups:
+                        groups[chat_id] = {
+                            'id': chat_id,
+                            'title': chat_title,
+                            'type': chat_type,
+                            'username': chat.get('username', None)
+                        }
+            
+            if not groups:
+                return {
+                    'success': True,
+                    'groups': [],
+                    'error': None,
+                    'instructions': 'Групи не знайдено в останніх оновленнях. Спробуйте:\n1. Надішліть будь-яке повідомлення в групу де є бот\n2. Додайте бота до групи як адміністратора\n3. Використайте команду /start в групі\n4. Спробуйте знову через кілька хвилин'
+                }
+            
+            return {
+                'success': True,
+                'groups': list(groups.values()),
+                'error': None,
+                'instructions': None
+            }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error getting available groups: {e}")
+            return {
+                'success': False,
+                'groups': [],
+                'error': f'Помилка з\'єднання: {str(e)}',
+                'instructions': 'Перевірте з\'єднання з інтернетом та спробуйте знову.'
+            }
+    
+    def send_group_discovery_message(self, chat_id: str) -> Dict[str, Any]:
+        """
+        Відправляє повідомлення для виявлення ID групи
+        
+        Args:
+            chat_id: ID чату для відправки повідомлення
+            
+        Returns:
+            Dict з інформацією про чат та його ID
+        """
+        try:
+            message = "🤖 Тест з'єднання з ботом\n\nЦе повідомлення підтверджує, що бот працює в цій групі."
+            
+            response = requests.post(
+                f"{self.base_url}/sendMessage",
+                json={
+                    'chat_id': chat_id,
+                    'text': message,
+                    'parse_mode': 'HTML'
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('ok'):
+                    message_data = result.get('result', {})
+                    chat_data = message_data.get('chat', {})
+                    
+                    return {
+                        'success': True,
+                        'chat_info': {
+                            'id': str(chat_data.get('id')),
+                            'title': chat_data.get('title', 'Без назви'),
+                            'type': chat_data.get('type'),
+                            'username': chat_data.get('username')
+                        },
+                        'error': None
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'chat_info': None,
+                        'error': result.get('description', 'Невідома помилка')
+                    }
+            else:
+                return {
+                    'success': False,
+                    'chat_info': None,
+                    'error': f'HTTP {response.status_code}: {response.text}'
+                }
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error sending group discovery message: {e}")
+            return {
+                'success': False,
+                'chat_info': None,
+                'error': f'Помилка з\'єднання: {str(e)}'
+            }
+    
     def send_message_to_chat(self, chat_id: str, message: str, parse_mode: str = 'HTML') -> Dict[str, Any]:
         """
         Відправка повідомлення в чат або групу

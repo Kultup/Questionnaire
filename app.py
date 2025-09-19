@@ -49,7 +49,7 @@ app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///feedback_system.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///instance/feedback_system.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Disable CSRF protection
@@ -249,13 +249,15 @@ def send_test_telegram_message(bot_token):
 def send_telegram_message(bot_token, message, chat_id=None):
     """Send message to Telegram bot"""
     if not bot_token:
-        print("No bot token provided")
-        return False
+        error_msg = "No bot token provided"
+        print(error_msg)
+        return False, error_msg
     
     # Validate token before sending message
     if not validate_bot_token(bot_token):
-        print(f"Invalid bot token: {bot_token[:10]}...")
-        return False
+        error_msg = f"Invalid bot token: {bot_token[:10]}..."
+        print(error_msg)
+        return False, error_msg
     
     # If no chat_id provided, try to get updates to find a chat
     if not chat_id:
@@ -273,17 +275,21 @@ def send_telegram_message(bot_token, message, chat_id=None):
                             break
                     
                     if not chat_id:
-                        print("No chat_id found in bot updates. Please send a message to the bot first.")
-                        return False
+                        error_msg = "No chat_id found in bot updates. Please send a message to the bot first."
+                        print(error_msg)
+                        return False, error_msg
                 else:
-                    print("No updates found for bot. Please send a message to the bot first.")
-                    return False
+                    error_msg = "No updates found for bot. Please send a message to the bot first."
+                    print(error_msg)
+                    return False, error_msg
             else:
-                print(f"Failed to get bot updates: {updates_response.status_code}")
-                return False
+                error_msg = f"Failed to get bot updates: {updates_response.status_code}"
+                print(error_msg)
+                return False, error_msg
         except Exception as e:
-            print(f"Error getting bot updates: {e}")
-            return False
+            error_msg = f"Error getting bot updates: {e}"
+            print(error_msg)
+            return False, error_msg
     
     try:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -295,14 +301,17 @@ def send_telegram_message(bot_token, message, chat_id=None):
         response = requests.post(url, data=data, timeout=10)
         
         if response.status_code == 200:
-            print(f"Message sent successfully to chat_id: {chat_id}")
-            return True
+            success_msg = f"Message sent successfully to chat_id: {chat_id}"
+            print(success_msg)
+            return True, success_msg
         else:
-            print(f"Failed to send message. Status: {response.status_code}, Response: {response.text}")
-            return False
+            error_msg = f"Failed to send message. Status: {response.status_code}, Response: {response.text}"
+            print(error_msg)
+            return False, error_msg
     except Exception as e:
-        print(f"Telegram error: {e}")
-        return False
+        error_msg = f"Telegram error: {e}"
+        print(error_msg)
+        return False, error_msg
 
 def send_email_message(email_address, subject, message):
     """Send email message to specified address"""
@@ -966,6 +975,12 @@ def user_dashboard():
                          recent_comments=recent_comments,
                          questions_stats=questions_stats)
 
+@app.route('/bot-instructions')
+@login_required
+def bot_instructions():
+    """Сторінка з інструкціями по налаштуванню Telegram бота - доступна всім користувачам"""
+    return render_template('bot_instructions.html')
+
 @app.route('/user/questions')
 @manager_required
 def user_questions():
@@ -1260,9 +1275,9 @@ def survey(token):
             telegram_service = TelegramService(user.bot_token)
             
             # Send to private chat (existing functionality)
-            success = send_telegram_message(user.bot_token, telegram_message)
+            success, error_message = send_telegram_message(user.bot_token, telegram_message)
             if not success:
-                print(f"Failed to send Telegram message to private chat for restaurant: {user.restaurant_name} (ID: {user.id})")
+                print(f"Failed to send Telegram message to private chat for restaurant: {user.restaurant_name} (ID: {user.id}). Error: {error_message}")
             
             # Send to Telegram group if configured
             if user.telegram_group_enabled and user.telegram_group_id:
@@ -1653,6 +1668,100 @@ def user_bot_settings():
         form.bot_token.data = current_user.bot_token
     
     return render_template('user/bot_settings.html', form=form, bot_info=bot_info)
+
+@app.route('/user/telegram-group-settings', methods=['POST'])
+@manager_required
+def user_telegram_group_settings():
+    """Обробка налаштувань групи Telegram"""
+    telegram_group_id = request.form.get('telegram_group_id', '').strip()
+    telegram_enabled = request.form.get('telegram_enabled') == 'on'
+    
+    if telegram_enabled and not telegram_group_id:
+        flash('Для увімкнення сповіщень необхідно вказати ID групи Telegram.', 'error')
+        return redirect(url_for('user_bot_settings'))
+    
+    if telegram_enabled and not current_user.bot_token:
+        flash('Для увімкнення сповіщень спочатку налаштуйте токен бота.', 'error')
+        return redirect(url_for('user_bot_settings'))
+    
+    # Збереження налаштувань
+    if telegram_enabled:
+        current_user.telegram_group_id = telegram_group_id
+        current_user.telegram_group_enabled = True
+        flash('Налаштування групи Telegram збережено.', 'success')
+    else:
+        current_user.telegram_group_enabled = False
+        # Зберігаємо ID групи, але вимикаємо сповіщення
+        if telegram_group_id:
+            current_user.telegram_group_id = telegram_group_id
+        flash('Сповіщення в групу Telegram вимкнені.', 'info')
+    
+    db.session.commit()
+    return redirect(url_for('user_bot_settings'))
+
+@app.route('/user/test-group-message', methods=['POST'])
+@manager_required
+def user_test_group_message():
+    """Відправка тестового повідомлення в групу Telegram"""
+    if not current_user.bot_token:
+        flash('Спочатку налаштуйте токен бота.', 'error')
+        return redirect(url_for('user_bot_settings'))
+    
+    if not current_user.telegram_group_id:
+        flash('Спочатку налаштуйте ID групи Telegram.', 'error')
+        return redirect(url_for('user_bot_settings'))
+    
+    # Відправка тестового повідомлення
+    test_message = f"🧪 Тестове повідомлення від {current_user.restaurant_name}\n\nЯкщо ви бачите це повідомлення, налаштування групи працюють правильно!"
+    
+    success, message = send_telegram_message(
+        current_user.bot_token, 
+        test_message, 
+        current_user.telegram_group_id
+    )
+    
+    if success:
+        flash('Тестове повідомлення успішно відправлено в групу!', 'success')
+    else:
+        flash(f'Помилка відправки тестового повідомлення: {message}', 'error')
+    
+    return redirect(url_for('user_bot_settings'))
+
+@app.route('/user/get-available-groups', methods=['POST'])
+@manager_required
+def user_get_available_groups():
+    """Отримання списку доступних груп з оновлень бота"""
+    if not current_user.bot_token:
+        return jsonify({
+            'success': False,
+            'error': 'Спочатку налаштуйте токен бота.',
+            'groups': []
+        })
+    
+    try:
+        telegram_service = TelegramService(current_user.bot_token)
+        result = telegram_service.get_available_groups()
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'groups': result['groups'],
+                'error': None
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result['error'],
+                'groups': []
+            })
+            
+    except Exception as e:
+        app.logger.error(f"Error getting available groups for user {current_user.id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Виникла помилка при отриманні списку груп.',
+            'groups': []
+        })
 
 @app.route('/user/export')
 @manager_required

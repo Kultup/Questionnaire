@@ -1,0 +1,72 @@
+<svg width="400" height="500" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="400" height="500" fill="#2c3e50" rx="10"/>
+  
+  <!-- Header -->
+  <rect x="10" y="10" width="380" height="50" fill="#34495e" rx="5"/>
+  <text x="20" y="35" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="14">Призначив(ла) адміністратором: Діма 9 липня в 9:53.</text>
+  
+  <!-- Title -->
+  <text x="20" y="80" fill="#3498db" font-family="Arial, sans-serif" font-size="16" font-weight="bold">Можливості адміністратора:</text>
+  
+  <!-- Permission items -->
+  <g id="permissions">
+    <!-- Change group info -->
+    <rect x="20" y="100" width="360" height="30" fill="#34495e" rx="3"/>
+    <text x="30" y="120" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="13">Зміненення профіля групи</text>
+    <circle cx="350" cy="115" r="8" fill="#3498db"/>
+    <circle cx="350" cy="115" r="5" fill="#ecf0f1"/>
+    
+    <!-- Delete messages -->
+    <rect x="20" y="140" width="360" height="30" fill="#34495e" rx="3"/>
+    <text x="30" y="160" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="13">Видалення повідомлень</text>
+    <circle cx="350" cy="155" r="8" fill="#3498db"/>
+    <circle cx="350" cy="155" r="5" fill="#ecf0f1"/>
+    
+    <!-- Block users -->
+    <rect x="20" y="180" width="360" height="30" fill="#34495e" rx="3"/>
+    <text x="30" y="200" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="13">Блокування користувачів</text>
+    <circle cx="350" cy="195" r="8" fill="#3498db"/>
+    <circle cx="350" cy="195" r="5" fill="#ecf0f1"/>
+    
+    <!-- Invite links -->
+    <rect x="20" y="220" width="360" height="30" fill="#34495e" rx="3"/>
+    <text x="30" y="240" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="13">Запрошувальні посилання</text>
+    <circle cx="350" cy="235" r="8" fill="#3498db"/>
+    <circle cx="350" cy="235" r="5" fill="#ecf0f1"/>
+    
+    <!-- Pin messages -->
+    <rect x="20" y="260" width="360" height="30" fill="#34495e" rx="3"/>
+    <text x="30" y="280" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="13">Закріплення повідомлень</text>
+    <circle cx="350" cy="275" r="8" fill="#3498db"/>
+    <circle cx="350" cy="275" r="5" fill="#ecf0f1"/>
+    
+    <!-- Manage video chats -->
+    <rect x="20" y="300" width="360" height="30" fill="#34495e" rx="3"/>
+    <text x="30" y="320" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="13">Управління історіями 3/3</text>
+    <circle cx="350" cy="315" r="8" fill="#3498db"/>
+    <circle cx="350" cy="315" r="5" fill="#ecf0f1"/>
+    
+    <!-- Manage video chats -->
+    <rect x="20" y="340" width="360" height="30" fill="#34495e" rx="3"/>
+    <text x="30" y="360" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="13">Управління відеочатами</text>
+    <circle cx="350" cy="355" r="8" fill="#3498db"/>
+    <circle cx="350" cy="355" r="5" fill="#ecf0f1"/>
+    
+    <!-- Anonymous -->
+    <rect x="20" y="380" width="360" height="30" fill="#34495e" rx="3"/>
+    <text x="30" y="400" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="13">Анонімність</text>
+    <circle cx="350" cy="395" r="8" fill="#e74c3c"/>
+    <circle cx="345" cy="395" r="5" fill="#ecf0f1"/>
+    
+    <!-- Add admins -->
+    <rect x="20" y="420" width="360" height="30" fill="#34495e" rx="3"/>
+    <text x="30" y="440" fill="#ecf0f1" font-family="Arial, sans-serif" font-size="13">Додавання адміністраторів</text>
+    <circle cx="350" cy="435" r="8" fill="#e74c3c"/>
+    <circle cx="345" cy="435" r="5" fill="#ecf0f1"/>
+  </g>
+  
+  <!-- Footer note -->
+  <text x="20" y="470" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="11">Цей адміністратор не зможе додавати нових</text>
+  <text x="20" y="485" fill="#7f8c8d" font-family="Arial, sans-serif" font-size="11">адміністраторів.</text>
+</svg>

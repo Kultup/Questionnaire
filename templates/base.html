@@ -26,6 +26,28 @@
             background-color: #0b5ed7;
             border-color: #0a58ca;
         }
+        
+        /* Стилі для посилання на інструкції бота */
+        .bot-instructions-link {
+            background-color: rgba(255,255,255,0.1) !important;
+            border-radius: 0.375rem;
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            transition: all 0.2s ease-in-out;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .bot-instructions-link:hover {
+            background-color: rgba(255,255,255,0.2) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            color: #fff !important;
+        }
+        
+        .bot-instructions-link:focus {
+            outline: 2px solid rgba(255,255,255,0.5);
+            outline-offset: 2px;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -37,7 +59,12 @@
             </span>
             
             {% if current_user.is_authenticated or session.get('admin_logged_in') %}
-            <div class="navbar-nav ms-auto">
+            <div class="navbar-nav ms-auto d-flex align-items-center">
+                <!-- Посилання на інструкції бота -->
+                <a href="{{ url_for('bot_instructions') }}" class="nav-link me-3 d-flex align-items-center bot-instructions-link">
+                    <i class="fas fa-robot me-2"></i>
+                    <span class="fw-semibold">Інструкція з налаштування бота</span>
+                </a>
                 <div class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                         <i class="fas fa-user me-1"></i>
