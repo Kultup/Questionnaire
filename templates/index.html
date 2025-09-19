@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Головна - Система збору відгуків{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body text-center">
+                <h1 class="card-title mb-4">
+                    <i class="fas fa-comments text-primary me-3"></i>
+                    Система збору відгуків
+                </h1>
+                <p class="card-text lead mb-4">
+                    Платформа для збору та аналізу відгуків про якість обслуговування
+                </p>
+                
+                <div class="row mt-5">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 border-primary">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-user-shield text-primary"></i>
+                                    Адміністратор
+                                </h5>
+                                <p class="card-text">Керування системою, менеджерами та аналітика</p>
+                                <a href="{{ url_for('login') }}" class="btn btn-primary">
+                                    <i class="fas fa-sign-in-alt me-2"></i>Увійти
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 border-success">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-store text-success"></i>
+                                    Менеджер закладу
+                                </h5>
+                                <p class="card-text">Керування опитуваннями та аналітика закладу</p>
+                                <a href="{{ url_for('login') }}" class="btn btn-success">
+                                    <i class="fas fa-sign-in-alt me-2"></i>Увійти
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Для проходження опитування скористайтеся QR-кодом у вашому закладі
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

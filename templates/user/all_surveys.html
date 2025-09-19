@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Всі відгуки - {{ current_user.restaurant_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-list me-2"></i>Всі відгуки</h2>
+                <a href="{{ url_for('user_dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Назад до дашборду
+                </a>
+            </div>
+
+            {% if survey_data %}
+                <div class="row">
+                    {% for item in survey_data %}
+                        <div class="col-md-6 col-lg-4 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-user me-2"></i>{{ item.survey.waiter_name }}
+                                    </h6>
+                                    <span class="badge bg-primary">{{ item.survey.overall_score }}/10</span>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-3">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        {{ item.survey.created_at.strftime('%d.%m.%Y %H:%M') }}
+                                    </p>
+
+                                    {% if item.answers %}
+                                        <h6 class="mb-2">Відповіді на питання:</h6>
+                                        {% for answer in item.answers %}
+                                            <div class="mb-2">
+                                                <div class="d-flex align-items-center mb-1">
+                                                    <strong class="me-2">{{ answer.question.question_text }}</strong>
+                                                    {% if answer.answer %}
+                                                        <span class="badge bg-success">Так</span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger">Ні</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% if answer.comment %}
+                                                    <div class="text-muted small">
+                                                        <i class="fas fa-comment me-1"></i>
+                                                        {{ answer.comment }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <p class="text-muted">Немає відповідей на питання</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination could be added here if needed -->
+                <div class="d-flex justify-content-center mt-4">
+                    <p class="text-muted">Всього відгуків: {{ survey_data|length }}</p>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">Поки що немає відгуків</h4>
+                    <p class="text-muted">Відгуки з'являться тут після того, як клієнти заповнять опитування.</p>
+                    <a href="{{ url_for('user_qr_code') }}" class="btn btn-primary">
+                        <i class="fas fa-qrcode me-2"></i>Згенерувати QR-код
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+
+{% block title %}Панель менеджера - {{ current_user.restaurant_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>
+                    <i class="fas fa-store text-primary me-2"></i>
+                    {{ current_user.restaurant_name }}
+                </h2>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-map-marker-alt me-1"></i>
+                    {{ current_user.city }} • Менеджер: {{ current_user.login }}
+                </p>
+            </div>
+            <div>
+                <a href="{{ url_for('user_questions') }}" class="btn btn-primary me-2">
+                    <i class="fas fa-question-circle me-1"></i>
+                    Керування питаннями
+                </a>
+                <a href="{{ url_for('user_qr_code') }}" class="btn btn-success me-2">
+                    <i class="fas fa-qrcode me-1"></i>
+                    QR-код
+                </a>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-cog me-1"></i>
+                        Дії
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('user_export') }}">
+                            <i class="fas fa-file-excel me-2"></i>Експорт даних
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('user_filters') }}">
+                            <i class="fas fa-filter me-2"></i>Фільтри
+                        </a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('user_bot_settings') }}">
+                            <i class="fas fa-bell me-2"></i>Налаштування сповіщень
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('logout') }}">
+                            <i class="fas fa-sign-out-alt me-2"></i>Вийти
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card dashboard-card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Всього відгуків</h6>
+                        <div class="stat-number">{{ total_surveys or 0 }}</div>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-comments fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card dashboard-card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Середня оцінка</h6>
+                        <div class="stat-number">
+                            {% if avg_score %}
+                                {{ "%.1f"|format(avg_score) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-star fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card dashboard-card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">За сьогодні</h6>
+                        <div class="stat-number">{{ today_surveys or 0 }}</div>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-calendar-day fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card dashboard-card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">Активних питань</h6>
+                        <div class="stat-number">{{ active_questions or 0 }}</div>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-question-circle fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>
+                        Динаміка відгуків
+                    </h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="chartPeriod" id="chart7days" autocomplete="off" checked>
+                        <label class="btn btn-outline-primary" for="chart7days">7 днів</label>
+                        
+                        <input type="radio" class="btn-check" name="chartPeriod" id="chart30days" autocomplete="off">
+                        <label class="btn btn-outline-primary" for="chart30days">30 днів</label>
+                        
+                        <input type="radio" class="btn-check" name="chartPeriod" id="chart90days" autocomplete="off">
+                        <label class="btn btn-outline-primary" for="chart90days">90 днів</label>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="surveysChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>
+                    Розподіл оцінок
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="ratingsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Questions Analytics -->
+{% if questions_stats %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-poll me-2"></i>
+                    Статистика відповідей на питання
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for question_stat in questions_stats %}
+                    <div class="col-md-6 mb-4">
+                        <div class="question-stat-card">
+                            <h6 class="fw-bold mb-3">{{ question_stat.question_text }}</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="text-center">
+                                        <div class="stat-circle bg-success text-white">
+                                            {{ question_stat.yes_count }}
+                                        </div>
+                                        <div class="small text-success fw-bold mt-1">ТАК</div>
+                                        <div class="small text-muted">
+                                            {{ "%.1f"|format(question_stat.yes_percentage) }}%
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-center">
+                                        <div class="stat-circle bg-danger text-white">
+                                            {{ question_stat.no_count }}
+                                        </div>
+                                        <div class="small text-danger fw-bold mt-1">НІ</div>
+                                        <div class="small text-muted">
+                                            {{ "%.1f"|format(question_stat.no_percentage) }}%
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if question_stat.comments_count > 0 %}
+                            <div class="mt-2 text-center">
+                                <small class="text-muted">
+                                    <i class="fas fa-comment me-1"></i>
+                                    {{ question_stat.comments_count }} коментарів
+                                </small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent Surveys and Comments -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock me-2"></i>
+                        Останні відгуки
+                    </h5>
+                    <a href="{{ url_for('user_all_surveys') }}" class="btn btn-sm btn-outline-primary">
+                        Всі відгуки
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if recent_surveys %}
+                    {% for survey in recent_surveys %}
+                    <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
+                        <div>
+                            <div class="fw-bold">{{ survey.waiter_name }}</div>
+                            <small class="text-muted">
+                                {{ survey.created_at.strftime('%d.%m.%Y %H:%M') if survey.created_at else '-' }}
+                            </small>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge bg-primary">{{ survey.overall_score }}/10</span>
+                            {% set has_comments = survey.answers|selectattr('comment')|selectattr('comment', 'ne', '')|list|length > 0 %}
+                            {% if has_comments %}
+                                <br><small class="text-muted">
+                                    <i class="fas fa-comment"></i> є коментарі
+                                </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-comments fa-2x mb-2"></i>
+                        <div>Немає відгуків</div>
+                        <small>Відгуки з'являться після заповнення форми клієнтами</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-comments me-2"></i>
+                        Останні коментарі
+                    </h5>
+                    <a href="{{ url_for('user_all_comments') }}" class="btn btn-sm btn-outline-primary">
+                        Всі коментарі
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if recent_comments %}
+                    {% for comment in recent_comments %}
+                    <div class="comment-item py-2 {% if not loop.last %}border-bottom{% endif %}">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <small class="text-muted">
+                                {{ comment.survey.waiter_name }} • 
+                                {{ comment.survey.created_at.strftime('%d.%m %H:%M') if comment.survey.created_at else '-' }}
+                            </small>
+                            <span class="badge bg-{{ 'success' if comment.answer else 'danger' }} badge-sm">
+                                {{ 'ТАК' if comment.answer else 'НІ' }}
+                            </span>
+                        </div>
+                        <div class="small">{{ comment.comment[:100] }}{% if comment.comment|length > 100 %}...{% endif %}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-comment fa-2x mb-2"></i>
+                        <div>Немає коментарів</div>
+                        <small>Коментарі з'являться в відгуках клієнтів</small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Charts initialization
+const ctx1 = document.getElementById('surveysChart').getContext('2d');
+const surveysChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+        labels: {{ chart_labels|safe if chart_labels else '[]' }},
+        datasets: [{
+            label: 'Відгуки',
+            data: {{ chart_data|safe if chart_data else '[]' }},
+            borderColor: 'rgb(13, 110, 253)',
+            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+            tension: 0.1,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+
+const ctx2 = document.getElementById('ratingsChart').getContext('2d');
+const ratingsChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+        labels: ['1-3 (Погано)', '4-6 (Задовільно)', '7-8 (Добре)', '9-10 (Відмінно)'],
+        datasets: [{
+            data: {{ ratings_distribution|safe if ratings_distribution else '[0,0,0,0]' }},
+            backgroundColor: [
+                'rgb(220, 53, 69)',
+                'rgb(255, 193, 7)',
+                'rgb(25, 135, 84)',
+                'rgb(13, 110, 253)'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// Chart period change handlers
+document.querySelectorAll('input[name="chartPeriod"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const period = this.id === 'chart7days' ? 7 : 
+                      this.id === 'chart30days' ? 30 : 90;
+        
+        console.log('Chart period changed to:', period);
+        
+        // Fetch new chart data
+        fetch(`/api/user/chart-data?period=${period}`)
+            .then(response => response.json())
+            .then(data => {
+                // Update chart with new data
+                surveysChart.data.labels = data.chart_labels;
+                surveysChart.data.datasets[0].data = data.chart_data;
+                surveysChart.update();
+            })
+            .catch(error => {
+                console.error('Error fetching chart data:', error);
+            });
+    });
+});
+
+// Auto-refresh data every 30 seconds
+setInterval(function() {
+    // This would refresh the statistics without full page reload
+    console.log('Auto-refreshing dashboard data...');
+}, 30000);
+</script>
+{% endblock %}

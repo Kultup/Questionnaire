@@ -1,0 +1,561 @@
+{% extends "base.html" %}
+
+{% block title %}Керування питаннями - {{ current_user.restaurant_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>
+                <i class="fas fa-question-circle text-primary me-2"></i>
+                Керування питаннями
+            </h2>
+            <div>
+                <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-secondary me-2">
+                    <i class="fas fa-arrow-left me-1"></i>
+                    Назад до дашборду
+                </a>
+                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addQuestionModal">
+                    <i class="fas fa-plus me-1"></i>
+                    Додати питання
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Delete Confirmation Modal -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                    Підтвердження масового видалення
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="bulkDeleteMessage">Ви впевнені, що хочете видалити обрані питання?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Увага!</strong> Це також видалить всі відповіді на ці питання з існуючих відгуків.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>
+                    Скасувати
+                </button>
+                <button type="button" id="confirmBulkDelete" class="btn btn-danger">
+                    <i class="fas fa-trash me-1"></i>
+                    Видалити обрані
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Questions List -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        Список питань ({{ questions|length }})
+                    </h5>
+                    <div class="text-muted small">
+                        Активних: {{ active_count }} • 
+                        Неактивних: {{ inactive_count }}
+                    </div>
+                </div>
+                {% if questions %}
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <input type="checkbox" id="selectAll" class="form-check-input me-2">
+                            <label for="selectAll" class="form-check-label">Вибрати всі</label>
+                        </div>
+                        <button type="button" id="deleteSelectedBtn" class="btn btn-sm btn-outline-danger" disabled>
+                            <i class="fas fa-trash me-1"></i>
+                            Видалити обрані
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if questions %}
+                <form id="bulkDeleteForm" method="POST" action="{{ url_for('user_bulk_delete_questions') }}">
+                    <div class="questions-list">
+                    {% for question in questions %}
+                    <div class="question-item card mb-3 {% if not question.is_active %}bg-light{% endif %}">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-1">
+                                    <input type="checkbox" name="question_ids" value="{{ question.id }}" class="form-check-input question-checkbox">
+                                </div>
+                                <div class="col-md-7">
+                                    <div class="d-flex align-items-start">
+                                        <div class="question-number me-3">
+                                            <span class="badge bg-primary">{{ loop.index }}</span>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1 {% if not question.is_active %}text-muted{% endif %}">
+                                                {{ question.question_text }}
+                                            </h6>
+                                            <div class="small text-muted">
+                                                <i class="fas fa-check-circle me-1"></i>
+                                                Тип питання: 
+                                                {% if question.question_type == 'yes_no' %}
+                                                    Так/Ні
+                                                {% else %}
+                                                    Ручний ввід
+                                                {% endif %}
+                                            </div>
+                                            {% if question.answers %}
+                                            <div class="small text-info mt-1">
+                                                <i class="fas fa-chart-bar me-1"></i>
+                                                Відповідей: {{ question.answers|length }} • 
+                                                Так: {{ question.answers|selectattr('answer', 'equalto', true)|list|length }} • 
+                                                Ні: {{ question.answers|selectattr('answer', 'equalto', false)|list|length }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex justify-content-end align-items-center">
+                                        <div class="me-3">
+                                            {% if question.is_active %}
+                                                <span class="badge bg-success">Активне</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Неактивне</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-sm btn-outline-warning" 
+                                                    onclick="editQuestion({{ question.id }}, '{{ question.question_text|e }}', '{{ question.question_type }}', {{ question.is_active|lower }})">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <form method="POST" action="{{ url_for('user_toggle_question', question_id=question.id) }}" class="d-inline">
+                                                {% if question.is_active %}
+                                                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Деактивувати">
+                                                        <i class="fas fa-pause"></i>
+                                                    </button>
+                                                {% else %}
+                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Активувати">
+                                                        <i class="fas fa-play"></i>
+                                                    </button>
+                                                {% endif %}
+                                            </form>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                    onclick="confirmDeleteQuestion({{ question.id }}, '{{ question.question_text|e }}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                </form>
+                
+                <!-- Reorder Questions -->
+                {% if questions|length > 1 %}
+                <div class="mt-4 p-3 bg-light rounded">
+                    <h6 class="mb-2">
+                        <i class="fas fa-sort me-2"></i>
+                        Порядок питань
+                    </h6>
+                    <p class="small text-muted mb-2">
+                        Питання відображаються в опитуванні в тому порядку, в якому вони створені. 
+                        Для зміни порядку видаліть та створіть питання заново.
+                    </p>
+                </div>
+                {% endif %}
+                
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-question-circle fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Немає створених питань</h5>
+                    <p class="text-muted">Створіть перше питання для опитувальника вашого закладу</p>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addQuestionModal">
+                        <i class="fas fa-plus me-1"></i>
+                        Створити питання
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Survey Preview -->
+{% if questions|selectattr('is_active')|list %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-eye me-2"></i>
+                    Попередній перегляд опитування
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="survey-preview">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ім'я офіціанта *</label>
+                        <input type="text" class="form-control" placeholder="Введіть ім'я офіціанта" disabled>
+                    </div>
+                    
+                    {% for question in questions|selectattr('is_active') %}
+                    <div class="question-card mb-4">
+                        <h6 class="fw-bold mb-3">{{ loop.index }}. {{ question.question_text }}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="q{{ question.id }}" disabled>
+                                    <label class="form-check-label text-success fw-bold">Так</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="q{{ question.id }}" disabled>
+                                    <label class="form-check-label text-danger fw-bold">Ні</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Загальне враження (1-10) *</label>
+                        <input type="range" class="form-range" min="1" max="10" value="5" disabled>
+                        <div class="d-flex justify-content-between small text-muted">
+                            <span>1 (Дуже погано)</span>
+                            <span>10 (Відмінно)</span>
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary" disabled>
+                        <i class="fas fa-paper-plane me-1"></i>
+                        Відправити відгук
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Add Question Modal -->
+<div class="modal fade" id="addQuestionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus text-success me-2"></i>
+                    Додати нове питання
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('user_add_question') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="question_type" class="form-label">Тип питання *</label>
+                        <select class="form-select" id="question_type" name="question_type" required>
+                            <option value="">Оберіть тип питання</option>
+                            <option value="yes_no">Так/Ні з коментарем</option>
+                            <option value="manual">Ручний ввід відповіді</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="question_text" class="form-label">Текст питання *</label>
+                        <textarea class="form-control" id="question_text" name="question_text" rows="3" required placeholder="Введіть текст питання..."></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="is_active" name="is_active" checked>
+                        <label class="form-check-label" for="is_active">
+                            Питання активне
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Додати питання
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Question Modal -->
+<div class="modal fade" id="editQuestionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit text-warning me-2"></i>
+                    Редагувати питання
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editQuestionForm" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_question_type" class="form-label">Тип питання *</label>
+                        <select class="form-select" id="edit_question_type" name="question_type" required>
+                            <option value="yes_no">Так/Ні</option>
+                            <option value="manual">Ручний ввід</option>
+                        </select>
+                        <div class="form-text" id="edit_question_type_help">
+                            Так/Ні: клієнт обирає "Так" або "Ні". Ручний ввід: клієнт вводить текстову відповідь.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_question_text" class="form-label">Текст питання *</label>
+                        <textarea class="form-control" id="edit_question_text" name="question_text" rows="3" required></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="edit_is_active" name="is_active">
+                        <label class="form-check-label" for="edit_is_active">
+                            Питання активне
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>
+                        Скасувати
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save me-1"></i>
+                        Зберегти зміни
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Question Modal -->
+<div class="modal fade" id="deleteQuestionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                    Підтвердження видалення
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Ви впевнені, що хочете видалити питання:</p>
+                <div class="alert alert-light border">
+                    <strong id="deleteQuestionText"></strong>
+                </div>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Увага!</strong> Це також видалить всі відповіді на це питання з існуючих відгуків.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>
+                    Скасувати
+                </button>
+                <form id="deleteQuestionForm" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i>
+                        Видалити
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Динамічна зміна підказки залежно від типу питання для edit modal
+const editQuestionType = document.getElementById('edit_question_type');
+if (editQuestionType) {
+    editQuestionType.addEventListener('change', function() {
+        const editHelpText = document.getElementById('edit_question_type_help');
+        if (editHelpText) {
+            if (this.value === 'yes_no') {
+                editHelpText.textContent = 'Так/Ні + коментар: клієнт обирає "Так" або "Ні" і може додати коментар';
+            } else {
+                editHelpText.textContent = 'Ручний ввід: клієнт зможе ввести довільну текстову відповідь';
+            }
+        }
+    });
+}
+
+// Динамічна зміна підказки залежно від типу питання
+const questionType = document.getElementById('question_type');
+if (questionType) {
+    questionType.addEventListener('change', function() {
+        const helpText = document.getElementById('question_help');
+        if (helpText) {
+            if (this.value === 'yes_no') {
+                helpText.textContent = 'Питання має бути зрозумілим для клієнтів. Відповідь буде у форматі "Так"/"Ні" + коментар.';
+            } else {
+                helpText.textContent = 'Питання має бути зрозумілим для клієнтів. Клієнт зможе ввести довільну текстову відповідь.';
+            }
+        }
+    });
+}
+
+function editQuestion(questionId, questionText, questionType, isActive) {
+    const editQuestionTypeEl = document.getElementById('edit_question_type');
+    const editQuestionTextEl = document.getElementById('edit_question_text');
+    const editIsActiveEl = document.getElementById('edit_is_active');
+    const editQuestionFormEl = document.getElementById('editQuestionForm');
+    const editQuestionModalEl = document.getElementById('editQuestionModal');
+    
+    if (editQuestionTypeEl) editQuestionTypeEl.value = questionType || 'yes_no';
+    if (editQuestionTextEl) editQuestionTextEl.value = questionText;
+    if (editIsActiveEl) editIsActiveEl.checked = isActive;
+    if (editQuestionFormEl) editQuestionFormEl.action = `/user/questions/${questionId}/edit`;
+    
+    // Update help text for edit modal
+    const editHelpText = document.getElementById('edit_question_type_help');
+    if (editHelpText) {
+        if (questionType === 'manual') {
+            editHelpText.textContent = 'Ручний ввід: клієнт зможе ввести довільну текстову відповідь';
+        } else {
+            editHelpText.textContent = 'Так/Ні + коментар: клієнт обирає "Так" або "Ні" і може додати коментар';
+        }
+    }
+    
+    if (editQuestionModalEl) {
+        new bootstrap.Modal(editQuestionModalEl).show();
+    }
+}
+
+function confirmDeleteQuestion(questionId, questionText) {
+    const deleteQuestionTextEl = document.getElementById('deleteQuestionText');
+    const deleteQuestionFormEl = document.getElementById('deleteQuestionForm');
+    const deleteQuestionModalEl = document.getElementById('deleteQuestionModal');
+    
+    if (deleteQuestionTextEl) deleteQuestionTextEl.textContent = questionText;
+    if (deleteQuestionFormEl) deleteQuestionFormEl.action = `/user/questions/${questionId}/delete`;
+    if (deleteQuestionModalEl) {
+        new bootstrap.Modal(deleteQuestionModalEl).show();
+    }
+}
+
+// Auto-hide alerts after 5 seconds
+setTimeout(function() {
+    const alerts = document.querySelectorAll('.alert-dismissible');
+    alerts.forEach(function(alert) {
+        const bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+    });
+}, 5000);
+
+// Character counter for question text
+document.getElementById('question_text').addEventListener('input', function() {
+    const maxLength = 500;
+    const currentLength = this.value.length;
+    
+    if (currentLength > maxLength) {
+        this.value = this.value.substring(0, maxLength);
+    }
+});
+
+document.getElementById('edit_question_text').addEventListener('input', function() {
+    const maxLength = 500;
+    const currentLength = this.value.length;
+    
+    if (currentLength > maxLength) {
+        this.value = this.value.substring(0, maxLength);
+    }
+});
+
+// Bulk delete functionality
+const selectAllCheckbox = document.getElementById('selectAll');
+const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+
+if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.question-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateDeleteButton();
+    });
+}
+
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('question-checkbox')) {
+        updateDeleteButton();
+        
+        // Update "Select All" checkbox
+        const checkboxes = document.querySelectorAll('.question-checkbox');
+        const checkedBoxes = document.querySelectorAll('.question-checkbox:checked');
+        const selectAllCheckbox = document.getElementById('selectAll');
+        
+        if (selectAllCheckbox) {
+            if (checkedBoxes.length === 0) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = false;
+            } else if (checkedBoxes.length === checkboxes.length) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = true;
+            } else {
+                selectAllCheckbox.indeterminate = true;
+            }
+        }
+    }
+});
+
+function updateDeleteButton() {
+    const checkedBoxes = document.querySelectorAll('.question-checkbox:checked');
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    if (deleteBtn) {
+        deleteBtn.disabled = checkedBoxes.length === 0;
+    }
+}
+
+if (deleteSelectedBtn) {
+    deleteSelectedBtn.addEventListener('click', function() {
+        const checkedBoxes = document.querySelectorAll('.question-checkbox:checked');
+        if (checkedBoxes.length === 0) return;
+        
+        const count = checkedBoxes.length;
+        const message = count === 1 ? 
+            'Ви впевнені, що хочете видалити обране питання?' : 
+            `Ви впевнені, що хочете видалити ${count} питань?`;
+        
+        // Update modal message
+        const bulkDeleteMessage = document.getElementById('bulkDeleteMessage');
+        if (bulkDeleteMessage) {
+            bulkDeleteMessage.textContent = message;
+        }
+        
+        // Show modal instead of confirm dialog
+        const modal = new bootstrap.Modal(document.getElementById('bulkDeleteModal'));
+        modal.show();
+    });
+}
+
+// Handle confirmation in modal
+const confirmBulkDelete = document.getElementById('confirmBulkDelete');
+if (confirmBulkDelete) {
+    confirmBulkDelete.addEventListener('click', function() {
+        const bulkDeleteForm = document.getElementById('bulkDeleteForm');
+        if (bulkDeleteForm) {
+            bulkDeleteForm.submit();
+        }
+    });
+}
+</script>
+{% endblock %}

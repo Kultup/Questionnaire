@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Опитування - {{ restaurant.restaurant_name }}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .survey-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            max-width: 800px;
+            overflow: hidden;
+        }
+        
+        .survey-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .survey-body {
+            padding: 2rem;
+        }
+        
+        .question-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .question-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .question-number {
+            background: #007bff;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+        
+        .form-check-input:checked {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        
+        .form-check-label {
+            font-weight: 500;
+            cursor: pointer;
+        }
+        
+        .yes-option {
+            color: #28a745;
+        }
+        
+        .no-option {
+            color: #dc3545;
+        }
+        
+        /* Button-style radio buttons */
+        .btn-radio-group {
+            display: flex;
+            gap: 10px;
+            margin: 1rem 0;
+        }
+        
+        .btn-radio {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            color: #6c757d;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-radio:hover {
+            border-color: #007bff;
+            color: #007bff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+        }
+        
+        .btn-radio.yes-btn {
+            border-color: #28a745;
+            color: #28a745;
+        }
+        
+        .btn-radio.yes-btn:hover,
+        .btn-radio.yes-btn.active {
+            background: #28a745;
+            color: white;
+            border-color: #28a745;
+        }
+        
+        .btn-radio.no-btn {
+            border-color: #dc3545;
+            color: #dc3545;
+        }
+        
+        .btn-radio.no-btn:hover,
+        .btn-radio.no-btn.active {
+            background: #dc3545;
+            color: white;
+            border-color: #dc3545;
+        }
+        
+        .btn-radio.active {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn-radio input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            cursor: pointer;
+        }
+        
+        .btn-radio i {
+            margin-right: 8px;
+            font-size: 1.1em;
+        }
+        
+        @media (max-width: 576px) {
+            .btn-radio-group {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .btn-radio {
+                padding: 10px 16px;
+            }
+        }
+        
+        .range-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        
+        .form-range {
+            height: 8px;
+        }
+        
+        .form-range::-webkit-slider-thumb {
+            background: #007bff;
+            width: 20px;
+            height: 20px;
+        }
+        
+        .range-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #007bff;
+            text-align: center;
+            margin: 1rem 0;
+        }
+        
+        .range-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-top: 0.5rem;
+        }
+        
+        .submit-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            margin-top: 2rem;
+        }
+        
+        .btn-submit {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+            color: white;
+        }
+        
+        .required-field {
+            color: #dc3545;
+        }
+        
+        .form-control:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+        
+        .alert {
+            border-radius: 10px;
+            border: none;
+        }
+        
+        .loading-spinner {
+            display: none;
+        }
+        
+        .loading .loading-spinner {
+            display: inline-block;
+        }
+        
+        .loading .btn-text {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .survey-container {
+                margin: 10px;
+                border-radius: 10px;
+            }
+            
+            .survey-header {
+                padding: 1.5rem 1rem;
+            }
+            
+            .survey-body {
+                padding: 1.5rem 1rem;
+            }
+            
+            .question-card {
+                padding: 1rem;
+            }
+            
+            .range-value {
+                font-size: 1.5rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .question-card .row {
+                flex-direction: column;
+            }
+            
+            .question-card .col-md-6:first-child {
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="survey-container">
+            <!-- Header -->
+            <div class="survey-header">
+                <h1 class="mb-2">
+                    <i class="fas fa-star me-2"></i>
+                    {{ restaurant.restaurant_name }}
+                </h1>
+                <p class="mb-0 opacity-75">
+                    <i class="fas fa-map-marker-alt me-1"></i>
+                    {{ restaurant.city }}
+                </p>
+                <hr class="my-3 opacity-50">
+                <h4 class="mb-0">Оцініть якість обслуговування</h4>
+                <p class="mb-0 small opacity-75">Ваша думка допоможе нам стати кращими</p>
+            </div>
+            
+            <!-- Survey Form -->
+            <div class="survey-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                                <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }} me-2"></i>
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <form method="POST" id="surveyForm" novalidate>
+    
+                    
+                    <!-- Waiter Name -->
+                    <div class="question-card">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="question-number">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <h5 class="mb-0">
+                                Ім'я офіціанта <span class="required-field">*</span>
+                            </h5>
+                        </div>
+                        <input type="text" 
+                               class="form-control form-control-lg" 
+                               name="waiter_name" 
+                               placeholder="Введіть ім'я офіціанта, який вас обслуговував" 
+                               required
+                               maxlength="100">
+                        <div class="invalid-feedback">
+                            Будь ласка, введіть ім'я офіціанта
+                        </div>
+                    </div>
+                    
+                    <!-- Questions -->
+                    {% for question in questions %}
+                    <div class="question-card">
+                        <div class="d-flex align-items-start mb-3">
+                            <div class="question-number">
+                                {{ loop.index }}
+                            </div>
+                            <h5 class="mb-0 flex-grow-1">
+                                {{ question.question_text }} <span class="required-field">*</span>
+                            </h5>
+                        </div>
+                        
+                        {% if question.question_type == 'yes_no' %}
+                        <!-- Yes/No Question -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="btn-radio-group">
+                                    <label class="btn-radio yes-btn" for="yes_{{ question.id }}">
+                                        <input class="form-check-input" 
+                                               type="radio" 
+                                               name="question_{{ question.id }}" 
+                                               id="yes_{{ question.id }}" 
+                                               value="true" 
+                                               required>
+                                        <i class="fas fa-thumbs-up"></i>
+                                        <strong>Так</strong>
+                                    </label>
+                                    <label class="btn-radio no-btn" for="no_{{ question.id }}">
+                                        <input class="form-check-input" 
+                                               type="radio" 
+                                               name="question_{{ question.id }}" 
+                                               id="no_{{ question.id }}" 
+                                               value="false" 
+                                               required>
+                                        <i class="fas fa-thumbs-down"></i>
+                                        <strong>Ні</strong>
+                                    </label>
+                                </div>
+                                <div class="invalid-feedback">
+                                    Оберіть відповідь
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Manual Input Question -->
+                        <div class="row">
+                            <div class="col-12">
+                                <textarea class="form-control" 
+                                          name="comment_{{ question.id }}" 
+                                          rows="4" 
+                                          placeholder="Введіть вашу відповідь..."
+                                          maxlength="500"
+                                          required></textarea>
+                                <div class="form-text">
+                                    <small class="text-muted">Максимум 500 символів</small>
+                                </div>
+                                <div class="invalid-feedback">
+                                    Будь ласка, введіть відповідь
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    
+                    <!-- Overall Score -->
+                    <div class="question-card">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="question-number">
+                                <i class="fas fa-star"></i>
+                            </div>
+                            <h5 class="mb-0">
+                                Загальне враження <span class="required-field">*</span>
+                            </h5>
+                        </div>
+                        
+                        <div class="range-container">
+                            <div class="range-value" id="scoreValue">5</div>
+                            <input type="range" 
+                                   class="form-range" 
+                                   name="overall_score" 
+                                   id="overallScore" 
+                                   min="1" 
+                                   max="10" 
+                                   value="5" 
+                                   required>
+                            <div class="range-labels">
+                                <span><i class="fas fa-frown text-danger"></i> 1 - Дуже погано</span>
+                                <span><i class="fas fa-smile text-success"></i> 10 - Відмінно</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Submit Section -->
+                    <div class="submit-section">
+                        <h5 class="mb-3">
+                            <i class="fas fa-heart text-danger me-2"></i>
+                            Дякуємо за ваш час!
+                        </h5>
+                        <p class="text-muted mb-4">
+                            Ваш відгук допоможе нам покращити якість обслуговування
+                        </p>
+                        
+                        <button type="submit" class="btn btn-submit btn-lg">
+                            <span class="btn-text">
+                                <i class="fas fa-paper-plane me-2"></i>
+                                Відправити відгук
+                            </span>
+                            <span class="loading-spinner">
+                                <i class="fas fa-spinner fa-spin me-2"></i>
+                                Відправляємо...
+                            </span>
+                        </button>
+                        
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-shield-alt me-1"></i>
+                                Ваші дані захищені та використовуються тільки для покращення сервісу
+                            </small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Range slider value display
+        const overallScore = document.getElementById('overallScore');
+        const scoreValue = document.getElementById('scoreValue');
+        
+        overallScore.addEventListener('input', function() {
+            scoreValue.textContent = this.value;
+            
+            // Change color based on score
+            if (this.value <= 3) {
+                scoreValue.style.color = '#dc3545'; // Red
+            } else if (this.value <= 6) {
+                scoreValue.style.color = '#ffc107'; // Yellow
+            } else {
+                scoreValue.style.color = '#28a745'; // Green
+            }
+        });
+        
+        // Form validation and submission
+        const form = document.getElementById('surveyForm');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Validate form
+            if (!form.checkValidity()) {
+                e.stopPropagation();
+                form.classList.add('was-validated');
+                
+                // Scroll to first invalid field
+                const firstInvalid = form.querySelector(':invalid');
+                if (firstInvalid) {
+                    firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstInvalid.focus();
+                }
+                return;
+            }
+            
+            // Show loading state
+            submitBtn.classList.add('loading');
+            submitBtn.disabled = true;
+            
+            // Submit form
+            setTimeout(() => {
+                form.submit();
+            }, 500);
+        });
+        
+        // Character counter for textareas
+        document.querySelectorAll('textarea[maxlength]').forEach(textarea => {
+            const maxLength = textarea.getAttribute('maxlength');
+            const formText = textarea.nextElementSibling.querySelector('small');
+            
+            textarea.addEventListener('input', function() {
+                const remaining = maxLength - this.value.length;
+                formText.textContent = `${this.value.length}/${maxLength} символів`;
+                
+                if (remaining < 50) {
+                    formText.classList.add('text-warning');
+                } else {
+                    formText.classList.remove('text-warning');
+                }
+            });
+        });
+        
+        // Auto-hide alerts after 5 seconds
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert-dismissible');
+            alerts.forEach(function(alert) {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 5000);
+        
+        // Smooth scroll for better UX
+        document.querySelectorAll('input[required], textarea').forEach(field => {
+            field.addEventListener('invalid', function() {
+                setTimeout(() => {
+                    this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            });
+        });
+        
+        // Add visual feedback for radio button selection
+        document.querySelectorAll('input[type="radio"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const questionCard = this.closest('.question-card');
+                questionCard.style.borderColor = '#28a745';
+                questionCard.style.backgroundColor = '#f8fff9';
+                
+                setTimeout(() => {
+                    questionCard.style.borderColor = '#e9ecef';
+                    questionCard.style.backgroundColor = '#f8f9fa';
+                }, 1000);
+            });
+        });
+        
+        // Handle button-style radio buttons
+        document.querySelectorAll('.btn-radio').forEach(btnRadio => {
+            const radioInput = btnRadio.querySelector('input[type="radio"]');
+            
+            btnRadio.addEventListener('click', function(e) {
+                // Remove active class from all buttons in the same group
+                const groupName = radioInput.name;
+                document.querySelectorAll(`input[name="${groupName}"]`).forEach(input => {
+                    input.closest('.btn-radio').classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                radioInput.checked = true;
+                
+                // Trigger change event for validation
+                radioInput.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            
+            // Handle keyboard navigation
+            radioInput.addEventListener('focus', function() {
+                btnRadio.style.outline = '2px solid #007bff';
+                btnRadio.style.outlineOffset = '2px';
+            });
+            
+            radioInput.addEventListener('blur', function() {
+                btnRadio.style.outline = 'none';
+            });
+            
+            // Handle keyboard selection (Space/Enter)
+            radioInput.addEventListener('keydown', function(e) {
+                if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    btnRadio.click();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

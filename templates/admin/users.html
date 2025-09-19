@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Керування менеджерами - Система збору відгуків{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>
+                <i class="fas fa-users text-primary me-2"></i>
+                Керування менеджерами
+            </h2>
+            <div>
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary me-2">
+                    <i class="fas fa-arrow-left me-1"></i>
+                    Назад до дашборду
+                </a>
+                <a href="{{ url_for('admin_add_user') }}" class="btn btn-success">
+                    <i class="fas fa-plus me-1"></i>
+                    Додати менеджера
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Users Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Список менеджерів ({{ users|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if users %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Логін</th>
+                                <th>Заклад</th>
+                                <th>Місто</th>
+                                <th>Відгуків</th>
+                                <th>Статус</th>
+                                <th>Створено</th>
+                                <th>Дії</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ user.id }}</td>
+                                <td>
+                                    <strong>{{ user.login }}</strong>
+                                </td>
+                                <td>{{ user.restaurant_name }}</td>
+                                <td>{{ user.city }}</td>
+                                <td>
+                                    <span class="badge bg-primary">{{ user.surveys|length }}</span>
+                                </td>
+                                <td>
+                                    {% if user.is_active %}
+                                        <span class="badge bg-success">Активний</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Неактивний</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {{ user.created_at.strftime('%d.%m.%Y') if user.created_at else '-' }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('admin_user_details', user_id=user.id) }}" 
+                                           class="btn btn-sm btn-outline-info" title="Переглянути деталі">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('admin_edit_user', user_id=user.id) }}" 
+                                           class="btn btn-sm btn-outline-warning" title="Редагувати">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <form method="POST" action="{{ url_for('admin_toggle_user', user_id=user.id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-sm {% if user.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}" 
+                                                    title="{% if user.is_active %}Деактивувати{% else %}Активувати{% endif %}">
+                                                <i class="fas {% if user.is_active %}fa-pause{% else %}fa-play{% endif %}"></i>
+                                            </button>
+                                        </form>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                title="Видалити" onclick="confirmDelete({{ user.id }}, '{{ user.login }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Немає зареєстрованих менеджерів</h5>
+                    <p class="text-muted">Створіть першого менеджера для початку роботи</p>
+                    <a href="{{ url_for('admin_add_user') }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>
+                        Додати менеджера
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                    Підтвердження видалення
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Ви впевнені, що хочете видалити менеджера <strong id="deleteUserName"></strong>?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Увага!</strong> Це також видалить всі пов'язані дані:
+                    <ul class="mb-0 mt-2">
+                        <li>Всі опитувальники та питання</li>
+                        <li>Всі отримані відгуки</li>
+                        <li>QR-коди та налаштування</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>
+                    Скасувати
+                </button>
+                <form id="deleteForm" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-1"></i>
+                        Видалити
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete(userId, userName) {
+    document.getElementById('deleteUserName').textContent = userName;
+    document.getElementById('deleteForm').action = `/admin/users/${userId}/delete`;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+// Auto-hide alerts after 5 seconds
+setTimeout(function() {
+    const alerts = document.querySelectorAll('.alert-dismissible');
+    alerts.forEach(function(alert) {
+        const bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+    });
+}, 5000);
+</script>
+{% endblock %}

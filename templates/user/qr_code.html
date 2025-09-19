@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+
+{% block title %}QR-код для опитування - {{ current_user.restaurant_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>
+                <i class="fas fa-qrcode text-primary me-2"></i>
+                QR-код для опитування
+            </h2>
+            <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>
+                Назад до дашборду
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- QR Code Display -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-qrcode me-2"></i>
+                    Ваш QR-код
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                {% if qr_code %}
+                <div class="qr-code-container mb-4">
+                    <img src="data:image/png;base64,{{ qr_code_base64 }}" 
+                         alt="QR код для опитування" 
+                         class="qr-code-image border rounded p-2 bg-white">
+                </div>
+                
+                <div class="mb-3">
+                    <p class="text-muted mb-2">Посилання на опитування:</p>
+                    <div class="input-group">
+                        <input type="text" class="form-control" 
+                               value="{{ survey_url }}" 
+                               id="surveyUrl" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyUrl()">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-success" onclick="downloadQRCode()">
+                        <i class="fas fa-download me-1"></i>
+                        Завантажити QR-код
+                    </button>
+                    
+                    <!-- Social Share Buttons -->
+                    <div class="social-share-section mt-3">
+                        <p class="text-muted mb-2 text-center">Поділитися QR-кодом:</p>
+                        <div class="d-flex gap-2 justify-content-center">
+                            <button type="button" class="btn btn-telegram" onclick="shareToTelegram()">
+                                <i class="fab fa-telegram-plane me-1"></i>
+                                Telegram
+                            </button>
+                            <button type="button" class="btn btn-viber" onclick="shareToViber()">
+                                <i class="fab fa-viber me-1"></i>
+                                Viber
+                            </button>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                💡 Підказка: Якщо зображення не відправляється автоматично, 
+                                використовуйте кнопку "Завантажити QR-код" та прикріпіть файл вручну
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <form method="POST" action="{{ url_for('user_regenerate_qr') }}" class="d-inline">
+                        <button type="submit" class="btn btn-warning w-100" 
+                                onclick="return confirm('Ви впевнені? Старий QR-код перестане працювати.')">
+                            <i class="fas fa-sync-alt me-1"></i>
+                            Перегенерувати QR-код
+                        </button>
+                    </form>
+                </div>
+                
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-qrcode fa-4x text-muted mb-3"></i>
+                    <h5 class="text-muted">QR-код ще не створено</h5>
+                    <p class="text-muted mb-4">
+                        Створіть QR-код для вашого закладу, щоб клієнти могли залишати відгуки
+                    </p>
+                    
+                    {% if active_questions_count > 0 %}
+                    <form method="POST" action="{{ url_for('user_generate_qr') }}">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-plus me-1"></i>
+                            Генерувати QR-код
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Спочатку створіть та активуйте хоча б одне питання для опитування
+                    </div>
+                    <a href="{{ url_for('user_questions') }}" class="btn btn-primary">
+                        <i class="fas fa-question-circle me-1"></i>
+                        Керувати питаннями
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Instructions -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Інструкції по використанню
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="instruction-step mb-4">
+                    <div class="d-flex align-items-start">
+                        <div class="step-number me-3">
+                            <span class="badge bg-primary rounded-circle">1</span>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold">Роздрукуйте QR-код</h6>
+                            <p class="text-muted mb-0">
+                                Завантажте та роздрукуйте QR-код. Розмістіть його на столах, 
+                                біля каси або в інших зручних місцях для клієнтів.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="instruction-step mb-4">
+                    <div class="d-flex align-items-start">
+                        <div class="step-number me-3">
+                            <span class="badge bg-primary rounded-circle">2</span>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold">Клієнти сканують код</h6>
+                            <p class="text-muted mb-0">
+                                Клієнти можуть відсканувати QR-код камерою телефону або 
+                                спеціальним додатком для сканування QR-кодів.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="instruction-step mb-4">
+                    <div class="d-flex align-items-start">
+                        <div class="step-number me-3">
+                            <span class="badge bg-primary rounded-circle">3</span>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold">Заповнення опитування</h6>
+                            <p class="text-muted mb-0">
+                                Клієнти потрапляють на сторінку опитування, де можуть 
+                                оцінити якість обслуговування та залишити відгук.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="instruction-step mb-4">
+                    <div class="d-flex align-items-start">
+                        <div class="step-number me-3">
+                            <span class="badge bg-primary rounded-circle">4</span>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold">Отримання сповіщень</h6>
+                            <p class="text-muted mb-0">
+                                Після відправки відгуку ви отримаєте сповіщення в Telegram-бот 
+                                та зможете переглянути статистику в дашборді.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    <strong>Порада:</strong> Розмістіть QR-код на видному місці та додайте 
+                    короткий опис: "Оцініть наше обслуговування - відскануйте QR-код!"
+                </div>
+            </div>
+        </div>
+        
+        <!-- Statistics -->
+        {% if qr_code %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Статистика QR-коду
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="stat-item">
+                            <h4 class="text-primary mb-1">{{ total_surveys }}</h4>
+                            <p class="text-muted small mb-0">Всього відгуків</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-item">
+                            <h4 class="text-success mb-1">{{ surveys_today }}</h4>
+                            <p class="text-muted small mb-0">Сьогодні</p>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if total_surveys > 0 %}
+                <hr>
+                <div class="text-center">
+                    <p class="text-muted small mb-2">Середня оцінка</p>
+                    <h3 class="text-warning mb-0">
+                        <i class="fas fa-star me-1"></i>
+                        {{ "%.1f"|format(average_score) }}/10
+                    </h3>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Preview Survey -->
+{% if active_questions_count > 0 %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-eye me-2"></i>
+                        Попередній перегляд опитування
+                    </h5>
+                    {% if qr_code %}
+                    <a href="{{ request.url_root }}survey/{{ current_user.unique_token }}" 
+                       target="_blank" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-external-link-alt me-1"></i>
+                        Відкрити опитування
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="survey-preview bg-light p-4 rounded">
+                    <div class="text-center mb-4">
+                        <h4 class="text-primary">{{ current_user.restaurant_name }}</h4>
+                        <p class="text-muted">{{ current_user.city }}</p>
+                        <hr>
+                        <h5>Оцініть якість обслуговування</h5>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ім'я офіціанта *</label>
+                        <input type="text" class="form-control" placeholder="Введіть ім'я офіціанта" disabled>
+                    </div>
+                    
+                    {% for question in active_questions[:3] %}
+                    <div class="question-card mb-4">
+                        <h6 class="fw-bold mb-3">{{ loop.index }}. {{ question.question_text }}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" disabled>
+                                    <label class="form-check-label text-success fw-bold">Так</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" disabled>
+                                    <label class="form-check-label text-danger fw-bold">Ні</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <textarea class="form-control" rows="2" placeholder="Коментар" disabled></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    {% if active_questions_count > 3 %}
+                    <div class="text-center text-muted mb-4">
+                        <i class="fas fa-ellipsis-h"></i>
+                        <small>... та ще {{ active_questions_count - 3 }} питань</small>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Загальне враження (1-10) *</label>
+                        <input type="range" class="form-range" min="1" max="10" value="5" disabled>
+                        <div class="d-flex justify-content-between small text-muted">
+                            <span>1</span>
+                            <span>10</span>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <button type="button" class="btn btn-primary" disabled>
+                            <i class="fas fa-paper-plane me-1"></i>
+                            Відправити відгук
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function downloadQRCode() {
+    const qrImage = document.querySelector('.qr-code-image');
+    const restaurantName = "{{ current_user.restaurant_name }}";
+    
+    if (qrImage) {
+        // Create a canvas to get clean image data
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size to match image
+        canvas.width = qrImage.naturalWidth;
+        canvas.height = qrImage.naturalHeight;
+        
+        // Draw image on canvas
+        ctx.drawImage(qrImage, 0, 0);
+        
+        // Convert to blob and download
+        canvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `qr-code-${restaurantName.replace(/\s+/g, '-').toLowerCase()}.png`;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 'image/png');
+    }
+}
+
+function copyUrl() {
+    const urlInput = document.getElementById('surveyUrl');
+    urlInput.select();
+    urlInput.setSelectionRange(0, 99999); // For mobile devices
+    
+    try {
+        document.execCommand('copy');
+        
+        // Show success message
+        const button = event.target.closest('button');
+        const originalHtml = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i>';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        
+        setTimeout(() => {
+            button.innerHTML = originalHtml;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+        
+    } catch (err) {
+        console.error('Failed to copy URL:', err);
+        alert('Не вдалося скопіювати посилання');
+    }
+}
+
+function shareToTelegram() {
+    const surveyUrl = document.getElementById('surveyUrl').value;
+    const restaurantName = "{{ current_user.restaurant_name }}";
+    const message = `🍽️ Оцініть обслуговування в "${restaurantName}"!\n\n📱 Відскануйте QR-код або перейдіть за посиланням:\n${surveyUrl}\n\n⭐ Ваша думка важлива для нас!`;
+    
+    // Try Web Share API first (works on mobile devices)
+    if (navigator.share && navigator.canShare) {
+        const qrImage = document.querySelector('.qr-code-image');
+        if (qrImage && qrImage.complete) {
+            // Convert image to blob
+            fetch(qrImage.src)
+                .then(response => response.blob())
+                .then(blob => {
+                    const file = new File([blob], `qr-code-${restaurantName.replace(/\s+/g, '-').toLowerCase()}.png`, { type: 'image/png' });
+                    
+                    // Check if files can be shared
+                    if (navigator.canShare({ files: [file] })) {
+                        return navigator.share({
+                            title: `QR-код для "${restaurantName}"`,
+                            text: message,
+                            files: [file]
+                        });
+                    } else {
+                        // Fallback to sharing just text and URL
+                        return navigator.share({
+                            title: `QR-код для "${restaurantName}"`,
+                            text: message,
+                            url: surveyUrl
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.log('Web Share API failed:', err);
+                    fallbackTelegramShare(message, surveyUrl);
+                });
+        } else {
+            // Share just text if image not loaded
+            navigator.share({
+                title: `QR-код для "${restaurantName}"`,
+                text: message,
+                url: surveyUrl
+            }).catch(err => {
+                console.log('Web Share API failed:', err);
+                fallbackTelegramShare(message, surveyUrl);
+            });
+        }
+    } else {
+        // Fallback for desktop browsers
+        fallbackTelegramShare(message, surveyUrl);
+    }
+}
+
+function fallbackTelegramShare(message, surveyUrl) {
+    // For Telegram, share just the main message
+    const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(surveyUrl)}&text=${encodeURIComponent(message)}`;
+    window.open(telegramUrl, '_blank');
+}
+
+function shareToViber() {
+    const surveyUrl = document.getElementById('surveyUrl').value;
+    const restaurantName = "{{ current_user.restaurant_name }}";
+    const message = `🍽️ Оцініть обслуговування в "${restaurantName}"!\n\n📱 Відскануйте QR-код або перейдіть за посиланням:\n${surveyUrl}\n\n⭐ Ваша думка важлива для нас!`;
+    
+    // Try Web Share API first (works on mobile devices)
+    if (navigator.share && navigator.canShare) {
+        const qrImage = document.querySelector('.qr-code-image');
+        if (qrImage && qrImage.complete) {
+            // Convert image to blob
+            fetch(qrImage.src)
+                .then(response => response.blob())
+                .then(blob => {
+                    const file = new File([blob], `qr-code-${restaurantName.replace(/\s+/g, '-').toLowerCase()}.png`, { type: 'image/png' });
+                    
+                    // Check if files can be shared
+                    if (navigator.canShare({ files: [file] })) {
+                        return navigator.share({
+                            title: `QR-код для "${restaurantName}"`,
+                            text: message,
+                            files: [file]
+                        });
+                    } else {
+                        // Fallback to sharing just text and URL
+                        return navigator.share({
+                            title: `QR-код для "${restaurantName}"`,
+                            text: message,
+                            url: surveyUrl
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.log('Web Share API failed:', err);
+                    fallbackViberShare(message, surveyUrl);
+                });
+        } else {
+            // Share just text if image not loaded
+            navigator.share({
+                title: `QR-код для "${restaurantName}"`,
+                text: message,
+                url: surveyUrl
+            }).catch(err => {
+                console.log('Web Share API failed:', err);
+                fallbackViberShare(message, surveyUrl);
+            });
+        }
+    } else {
+        // Fallback for desktop browsers
+        fallbackViberShare(message, surveyUrl);
+    }
+}
+
+function fallbackViberShare(message, surveyUrl) {
+    // Try to open Viber with message
+    const viberUrl = `viber://forward?text=${encodeURIComponent(message)}`;
+    
+    // Create temporary link to try opening Viber
+    const link = document.createElement('a');
+    link.href = viberUrl;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Fallback: copy message to clipboard after a short delay
+    setTimeout(() => {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(message).then(() => {
+                alert('Повідомлення скопійовано в буфер обміну.\n\nДля відправки QR-коду:\n1. Вставте текст у Viber\n2. Завантажте QR-код кнопкою вище\n3. Прикріпіть зображення до повідомлення');
+            }).catch(() => {
+                showManualCopyInstructions(message);
+            });
+        } else {
+            showManualCopyInstructions(message);
+        }
+    }, 1000);
+}
+
+function showManualCopyInstructions(message) {
+    // Create a modal or alert with instructions
+    const instructions = `Для поділитися в Viber:\n\n1. Скопіюйте цей текст:\n${message}\n\n2. Завантажте QR-код кнопкою "Завантажити QR-код"\n\n3. Відкрийте Viber та прикріпіть зображення з текстом`;
+    alert(instructions);
+}
+
+function copyUrl() {
+    const urlInput = document.getElementById('surveyUrl');
+    urlInput.select();
+    urlInput.setSelectionRange(0, 99999); // For mobile devices
+    
+    try {
+        document.execCommand('copy');
+        
+        // Show success message
+        const button = event.target.closest('button');
+        const originalHtml = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i>';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        
+        setTimeout(() => {
+            button.innerHTML = originalHtml;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+        
+    } catch (err) {
+        console.error('Failed to copy URL:', err);
+        alert('Не вдалося скопіювати посилання');
+    }
+}
+
+// Auto-hide alerts after 5 seconds
+setTimeout(function() {
+    const alerts = document.querySelectorAll('.alert-dismissible');
+    alerts.forEach(function(alert) {
+        const bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+    });
+}, 5000);
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.qr-code-image {
+    max-width: 300px;
+    width: 100%;
+    height: auto;
+}
+
+.step-number .badge {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.instruction-step {
+    border-left: 3px solid #e9ecef;
+    padding-left: 1rem;
+    margin-left: 15px;
+}
+
+.stat-item h4 {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.survey-preview {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Social Share Buttons */
+.social-share-section {
+    border-top: 1px solid #e9ecef;
+    padding-top: 1rem;
+}
+
+.btn-telegram {
+    background: linear-gradient(135deg, #0088cc, #229ed9);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 136, 204, 0.2);
+}
+
+.btn-telegram:hover {
+    background: linear-gradient(135deg, #006ba6, #1a7db8);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 136, 204, 0.3);
+}
+
+.btn-telegram:focus {
+    box-shadow: 0 0 0 0.2rem rgba(0, 136, 204, 0.25);
+    color: white;
+}
+
+.btn-viber {
+    background: linear-gradient(135deg, #665cac, #7b6fb0);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(102, 92, 172, 0.2);
+}
+
+.btn-viber:hover {
+    background: linear-gradient(135deg, #5a4f9a, #6b5f9e);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(102, 92, 172, 0.3);
+}
+
+.btn-viber:focus {
+    box-shadow: 0 0 0 0.2rem rgba(102, 92, 172, 0.25);
+    color: white;
+}
+
+.btn-telegram i,
+.btn-viber i {
+    font-size: 1.1em;
+}
+
+@media (max-width: 768px) {
+    .qr-code-image {
+        max-width: 200px;
+    }
+    
+    .step-number {
+        margin-right: 1rem !important;
+    }
+    
+    .social-share-section .d-flex {
+        flex-direction: column;
+        gap: 0.5rem !important;
+    }
+    
+    .btn-telegram,
+    .btn-viber {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}

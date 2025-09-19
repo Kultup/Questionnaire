@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Всі коментарі - {{ current_user.restaurant_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-comments me-2"></i>Всі коментарі</h2>
+                <a href="{{ url_for('user_dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Назад до дашборду
+                </a>
+            </div>
+
+            {% if comments %}
+                <div class="row">
+                    {% for answer, survey, question in comments %}
+                        <div class="col-md-6 col-lg-4 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-user me-2"></i>{{ survey.waiter_name }}
+                                    </h6>
+                                    <span class="badge bg-primary">{{ survey.overall_score }}/10</span>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-3">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        {{ survey.created_at.strftime('%d.%m.%Y %H:%M') }}
+                                    </p>
+
+                                    <div class="mb-3">
+                                        <strong class="d-block mb-2">{{ question.question_text }}</strong>
+                                        <div class="d-flex align-items-center mb-2">
+                                            <span class="me-2">Відповідь:</span>
+                                            {% if answer.answer %}
+                                                <span class="badge bg-success">Так</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">Ні</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <div class="border-top pt-3">
+                                        <h6 class="mb-2">
+                                            <i class="fas fa-comment me-2"></i>Коментар:
+                                        </h6>
+                                        <p class="mb-0">{{ answer.comment }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination could be added here if needed -->
+                <div class="d-flex justify-content-center mt-4">
+                    <p class="text-muted">Всього коментарів: {{ comments|length }}</p>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-comment-slash fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">Поки що немає коментарів</h4>
+                    <p class="text-muted">Коментарі з'являться тут після того, як клієнти залишать відгуки з текстовими коментарями.</p>
+                    <a href="{{ url_for('user_qr_code') }}" class="btn btn-primary">
+                        <i class="fas fa-qrcode me-2"></i>Згенерувати QR-код
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

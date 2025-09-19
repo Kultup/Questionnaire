@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Налаштування сповіщень - {{ current_user.restaurant_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>
+                    <i class="fas fa-bell text-primary me-2"></i>
+                    Налаштування сповіщень
+                </h2>
+                <p class="text-muted mb-0">
+                    Керування Telegram ботом та Email сповіщеннями про відгуки
+                </p>
+            </div>
+            <div>
+                <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>
+                    Назад до панелі
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <!-- Email Settings Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-envelope me-2"></i>
+                    Email сповіщення
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('user_email_settings') }}">
+                    
+                    <div class="mb-3">
+                        <label for="email_address" class="form-label">Email адреса</label>
+                        <input type="email" class="form-control" id="email_address" name="email_address" 
+                               value="{{ current_user.email_address or '' }}" placeholder="example@domain.com">
+                        <div class="form-text">
+                            Email адреса для отримання копій відгуків
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="email_enabled" name="email_enabled" 
+                                   {{ 'checked' if current_user.email_enabled else '' }}>
+                            <label class="form-check-label" for="email_enabled">
+                                Увімкнути Email сповіщення
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Отримувати копії всіх відгуків на email
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>
+                        Зберегти Email налаштування
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <!-- Telegram Bot Settings Card -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-robot me-2"></i>
+                    Telegram бот
+                </h5>
+            </div>
+            <div class="card-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <form method="POST" action="{{ url_for('user_bot_settings') }}" style="display: inline;">
+                    <button type="submit" class="btn btn-warning btn-sm">
+                        <i class="fas fa-sync-alt"></i> Перегенерувати токен
+                    </button>
+                </form>
+
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.bot_token.label(class="form-label") }}
+                        {{ form.bot_token(class="form-control" + (" is-invalid" if form.bot_token.errors else "")) }}
+                        {% if form.bot_token.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.bot_token.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text">
+                            Введіть токен вашого Telegram бота для отримання сповіщень про нові відгуки.
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        {{ form.submit(class="btn btn-primary") }}
+                        {% if current_user.bot_token %}
+                            <button type="button" class="btn btn-outline-danger" onclick="confirmTokenRemoval()">
+                                <i class="fas fa-trash me-1"></i>
+                                Видалити токен
+                            </button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Telegram Group Settings Card -->
+        {% if current_user.bot_token %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>
+                    Налаштування Telegram групи
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('user_telegram_group_settings') }}">
+                    <div class="mb-3">
+                        <label for="telegram_group_id" class="form-label">ID Telegram групи</label>
+                        <input type="text" class="form-control" id="telegram_group_id" name="telegram_group_id" 
+                               value="{{ current_user.telegram_group_id or '' }}" placeholder="-1001234567890">
+                        <div class="form-text">
+                            ID групи для відправки сповіщень (починається з "-100")
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="telegram_group_enabled" name="telegram_group_enabled" 
+                                   {{ 'checked' if current_user.telegram_group_enabled else '' }}>
+                            <label class="form-check-label" for="telegram_group_enabled">
+                                Увімкнути сповіщення в групу
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Відправляти копії відгуків у Telegram групу
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save me-1"></i>
+                            Зберегти налаштування групи
+                        </button>
+                        {% if current_user.telegram_group_id %}
+                            <button type="button" class="btn btn-outline-info" onclick="testGroupMessage()">
+                                <i class="fas fa-paper-plane me-1"></i>
+                                Тестове повідомлення
+                            </button>
+                        {% endif %}
+                    </div>
+                </form>
+                
+                <div class="alert alert-info mt-3">
+                    <h6><i class="fas fa-lightbulb me-1"></i>Як налаштувати групу:</h6>
+                    <ol class="mb-0 small">
+                        <li>Додайте вашого бота до Telegram групи</li>
+                        <li>Дайте боту права адміністратора (можливість писати повідомлення)</li>
+                        <li>Отримайте ID групи (зверніться до адміністратора або використайте @userinfobot)</li>
+                        <li>Введіть ID групи у поле вище та увімкніть сповіщення</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <!-- Email Status Card -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Email статус
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Поточний статус:</strong>
+                    {% if current_user.email_enabled and current_user.email_address %}
+                        <span class="badge bg-success">Email налаштовано</span>
+                    {% elif current_user.email_address %}
+                        <span class="badge bg-warning">Email вимкнено</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Email не налаштовано</span>
+                    {% endif %}
+                </div>
+
+                {% if current_user.email_address %}
+                <div class="mb-3">
+                    <strong>Email адреса:</strong>
+                    <div class="input-group">
+                        <input type="email" class="form-control" value="{{ current_user.email_address }}" readonly>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-lightbulb me-1"></i>Про Email сповіщення:</h6>
+                    <ul class="mb-0 small">
+                        <li>Отримуйте копії всіх відгуків на email</li>
+                        <li>Налаштуйте email адресу та увімкніть сповіщення</li>
+                        <li>Email відправляється одночасно з Telegram</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Інформація
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Поточний статус:</strong>
+                    {% if current_user.bot_token %}
+                        <span class="badge bg-success">Токен налаштовано</span>
+                    {% else %}
+                        <span class="badge bg-warning">Токен не налаштовано</span>
+                    {% endif %}
+                </div>
+
+                {% if current_user.bot_token %}
+                {% if bot_info %}
+                <div class="mb-3">
+                    <strong>Інформація про бота:</strong>
+                    <div class="mt-2">
+                        <div><strong>Ім'я:</strong> {{ bot_info.first_name }}</div>
+                        {% if bot_info.username %}
+                        <div><strong>Username:</strong> @{{ bot_info.username }}</div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                💡 Для отримання сповіщень знайдіть бота 
+                                <strong>@{{ bot_info.username }}</strong> в Telegram 
+                                і надішліть йому повідомлення <code>/start</code>
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <strong>Токен:</strong>
+                    <div class="input-group">
+                        <input type="password" class="form-control" value="••••••••••••••••••••••••••••••••••••••••••••••" id="tokenDisplay" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="showTokenInfo()">
+                            <i class="fas fa-info-circle" id="toggleIcon"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">Токен приховано з міркувань безпеки</small>
+                </div>
+                {% endif %}
+
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-lightbulb me-1"></i>Як отримати токен бота:</h6>
+                    <ol class="mb-0 small">
+                        <li>Напишіть @BotFather в Telegram</li>
+                        <li>Відправте команду /newbot</li>
+                        <li>Дайте назву вашому боту</li>
+                        <li>Дайте username боту (має закінчуватися на "bot")</li>
+                        <li>Скопіюйте отриманий токен</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Telegram Group Status Card -->
+    {% if current_user.bot_token %}
+    <div class="col-md-6 mt-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>
+                    Статус Telegram групи
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Поточний статус:</strong>
+                    {% if current_user.telegram_group_enabled and current_user.telegram_group_id %}
+                        <span class="badge bg-success">Група налаштована</span>
+                    {% elif current_user.telegram_group_id %}
+                        <span class="badge bg-warning">Група вимкнена</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Група не налаштована</span>
+                    {% endif %}
+                </div>
+
+                {% if current_user.telegram_group_id %}
+                <div class="mb-3">
+                    <strong>ID групи:</strong>
+                    <div class="input-group">
+                        <input type="text" class="form-control" value="{{ current_user.telegram_group_id }}" readonly>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-lightbulb me-1"></i>Про групові сповіщення:</h6>
+                    <ul class="mb-0 small">
+                        <li>Відгуки надсилаються одночасно в приватний чат і групу</li>
+                        <li>Бот повинен мати права адміністратора в групі</li>
+                        <li>ID групи завжди починається з "-100"</li>
+                        <li>Використовуйте тестове повідомлення для перевірки</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function showTokenInfo() {
+    alert('Токен приховано з міркувань безпеки. Якщо потрібно змінити токен, використовуйте форму вище.');
+}
+
+function confirmTokenRemoval() {
+    if (confirm('Ви впевнені, що хочете видалити токен бота? Ви перестанете отримувати сповіщення про нові відгуки.')) {
+        // Create a form to submit token removal
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("user_bot_settings") }}';
+        
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = 'remove_token';
+        
+        form.appendChild(actionInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function testGroupMessage() {
+    if (confirm('Відправити тестове повідомлення у Telegram групу?')) {
+        // Create a form to submit test message
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("user_test_group_message") }}';
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}
