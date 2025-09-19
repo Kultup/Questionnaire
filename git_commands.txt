@@ -1,0 +1,18 @@
+Команди для виправлення синхронізації з GitHub:
+
+1. Додати всі файли до staging area:
+git add .
+
+2. Створити коміт з описом змін:
+git commit -m "Update: Complete Flask feedback system with database fixes and UI improvements"
+
+3. Переконатися, що гілка називається master:
+git branch -M master
+
+4. Примусово відправити зміни до GitHub:
+git push -f origin master
+
+5. Перевірити статус після відправки:
+git status
+
+Примітка: Команда git remote add origin пропущена, оскільки віддалений репозиторій вже налаштований.
