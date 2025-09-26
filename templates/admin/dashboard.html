@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+{% extends "admin/base.html" %}
 
-{% block title %}Панель адміністратора - Система збору відгуків{% endblock %}
+{% block title %}Панель адміністратора - SurveyBridge{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -11,14 +11,6 @@
                 Панель адміністратора
             </h2>
             <div>
-                <a href="{{ url_for('admin_users') }}" class="btn btn-primary me-2">
-                    <i class="fas fa-users me-1"></i>
-                    Керування менеджерами
-                </a>
-                <a href="{{ url_for('admin_export_page') }}" class="btn btn-success">
-                    <i class="fas fa-file-excel me-1"></i>
-                    Експорт даних
-                </a>
                 <a href="{{ url_for('admin_export') }}" class="btn btn-outline-success">
                     <i class="fas fa-download me-1"></i>
                     Швидкий експорт

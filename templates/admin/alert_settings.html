@@ -1,0 +1,230 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Налаштування алертів{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0 text-gray-800">
+                    <i class="fas fa-bell text-warning"></i>
+                    Налаштування алертів
+                </h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{{ url_for('admin_dashboard') }}">Адмін панель</a></li>
+                        <li class="breadcrumb-item active">Налаштування алертів</li>
+                    </ol>
+                </nav>
+            </div>
+
+            <!-- Інформаційна картка -->
+            <div class="card border-left-info shadow mb-4">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                Про алерти
+                            </div>
+                            <div class="text-gray-900">
+                                Налаштуйте канали для отримання критичних сповіщень про роботу системи. 
+                                Алерти відправляються при помилках сервісу сповіщень, проблемах з базою даних та інших критичних подіях.
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-info-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Форма налаштувань -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-cog"></i>
+                        Конфігурація алертів
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin_alert_settings') }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Email налаштування -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 class="text-primary mb-3">
+                                    <i class="fas fa-envelope"></i>
+                                    Email алерти
+                                </h5>
+                                
+                                <div class="form-group">
+                                    <div class="custom-control custom-switch">
+                                        {{ form.alert_email_enabled(class="custom-control-input", id="alert_email_enabled") }}
+                                        <label class="custom-control-label" for="alert_email_enabled">
+                                            Увімкнути email алерти
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    {{ form.alert_email.label(class="form-label") }}
+                                    {{ form.alert_email(class="form-control", placeholder="admin@example.com") }}
+                                    {% if form.alert_email.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {% for error in form.alert_email.errors %}
+                                                <div>{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Email адреса для отримання критичних алертів
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Telegram налаштування -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 class="text-primary mb-3">
+                                    <i class="fab fa-telegram"></i>
+                                    Telegram алерти
+                                </h5>
+                                
+                                <div class="form-group">
+                                    <div class="custom-control custom-switch">
+                                        {{ form.alert_telegram_enabled(class="custom-control-input", id="alert_telegram_enabled") }}
+                                        <label class="custom-control-label" for="alert_telegram_enabled">
+                                            Увімкнути Telegram алерти
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    {{ form.alert_telegram_bot_token.label(class="form-label") }}
+                                    {{ form.alert_telegram_bot_token(class="form-control") }}
+                                    {% if form.alert_telegram_bot_token.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {% for error in form.alert_telegram_bot_token.errors %}
+                                                <div>{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Токен бота для відправки алертів. Отримайте у <a href="https://t.me/BotFather" target="_blank">@BotFather</a>
+                                    </small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    {{ form.alert_telegram_chat_id.label(class="form-label") }}
+                                    {{ form.alert_telegram_chat_id(class="form-control") }}
+                                    {% if form.alert_telegram_chat_id.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {% for error in form.alert_telegram_chat_id.errors %}
+                                                <div>{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        ID чату або групи для алертів. Приклад: -1001234567890 або @username
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Кнопки дій -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        {{ form.submit(class="btn btn-primary") }}
+                                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary ml-2">
+                                            Скасувати
+                                        </a>
+                                    </div>
+                                    <div>
+                                        <!-- Тестування алертів буде додано пізніше -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Поточний статус -->
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-info-circle"></i>
+                        Поточний статус
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-envelope mr-2 {% if current_settings.alert_email_enabled %}text-success{% else %}text-muted{% endif %}"></i>
+                                <span class="font-weight-bold">Email алерти:</span>
+                                <span class="ml-2 badge {% if current_settings.alert_email_enabled %}badge-success{% else %}badge-secondary{% endif %}">
+                                    {% if current_settings.alert_email_enabled %}Увімкнено{% else %}Вимкнено{% endif %}
+                                </span>
+                            </div>
+                            {% if current_settings.alert_email_enabled and current_settings.alert_email %}
+                                <small class="text-muted ml-4">{{ current_settings.alert_email }}</small>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fab fa-telegram mr-2 {% if current_settings.alert_telegram_enabled %}text-success{% else %}text-muted{% endif %}"></i>
+                                <span class="font-weight-bold">Telegram алерти:</span>
+                                <span class="ml-2 badge {% if current_settings.alert_telegram_enabled %}badge-success{% else %}badge-secondary{% endif %}">
+                                    {% if current_settings.alert_telegram_enabled %}Увімкнено{% else %}Вимкнено{% endif %}
+                                </span>
+                            </div>
+                            {% if current_settings.alert_telegram_enabled and current_settings.alert_telegram_chat_id %}
+                                <small class="text-muted ml-4">{{ current_settings.alert_telegram_chat_id }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Автоматично показувати/приховувати поля залежно від стану перемикачів
+document.addEventListener('DOMContentLoaded', function() {
+    const emailToggle = document.getElementById('alert_email_enabled');
+    const telegramToggle = document.getElementById('alert_telegram_enabled');
+    
+    function toggleEmailFields() {
+        const emailFields = document.querySelectorAll('input[name="alert_email"]');
+        emailFields.forEach(field => {
+            field.disabled = !emailToggle.checked;
+            field.parentElement.style.opacity = emailToggle.checked ? '1' : '0.5';
+        });
+    }
+    
+    function toggleTelegramFields() {
+        const telegramFields = document.querySelectorAll('input[name="alert_telegram_bot_token"], input[name="alert_telegram_chat_id"]');
+        telegramFields.forEach(field => {
+            field.disabled = !telegramToggle.checked;
+            field.parentElement.style.opacity = telegramToggle.checked ? '1' : '0.5';
+        });
+    }
+    
+    emailToggle.addEventListener('change', toggleEmailFields);
+    telegramToggle.addEventListener('change', toggleTelegramFields);
+    
+    // Ініціалізація при завантаженні
+    toggleEmailFields();
+    toggleTelegramFields();
+});
+</script>
+{% endblock %}

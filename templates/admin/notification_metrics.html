@@ -1,0 +1,356 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Метрики сповіщень{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">📊 Метрики сповіщень</h1>
+                <div>
+                    <button class="btn btn-outline-info me-2" onclick="refreshHealth()">
+                        <i class="fas fa-sync-alt"></i> Оновити здоров'я
+                    </button>
+                    <form method="POST" action="{{ url_for('admin_reset_notification_metrics') }}" class="d-inline">
+                        <button type="submit" class="btn btn-outline-warning" onclick="return confirm('Ви впевнені, що хочете скинути метрики?')">
+                            <i class="fas fa-redo"></i> Скинути метрики
+                        </button>
+                    </form>
+                    
+                    <!-- Тестовий алерт буде додано пізніше -->
+                </div>
+            </div>
+
+            <!-- Здоров'я системи -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">🏥 Здоров'я системи</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="system-health" class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                <span>Завантаження...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Основні метрики -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-white bg-success">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">{{ metrics_report.performance_metrics.total_sent }}</h4>
+                                    <p class="card-text">Відправлено</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-check-circle fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-danger">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">{{ metrics_report.performance_metrics.total_failed }}</h4>
+                                    <p class="card-text">Невдалі</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-times-circle fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-info">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">{{ "%.1f"|format(metrics_report.performance_metrics.success_rate) }}%</h4>
+                                    <p class="card-text">Успішність</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-percentage fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-warning">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">{{ "%.2f"|format(metrics_report.performance_metrics.average_processing_time) }}с</h4>
+                                    <p class="card-text">Середній час</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-clock fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Статистика черги -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">📋 Статистика черги</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="text-center">
+                                        <h4 class="text-primary">{{ queue_stats.get('pending', 0) }}</h4>
+                                        <small class="text-muted">Очікують</small>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-center">
+                                        <h4 class="text-warning">{{ queue_stats.get('retrying', 0) }}</h4>
+                                        <small class="text-muted">Повторні спроби</small>
+                                    </div>
+                                </div>
+                                <div class="col-6 mt-3">
+                                    <div class="text-center">
+                                        <h4 class="text-success">{{ queue_stats.get('sent', 0) }}</h4>
+                                        <small class="text-muted">Відправлені</small>
+                                    </div>
+                                </div>
+                                <div class="col-6 mt-3">
+                                    <div class="text-center">
+                                        <h4 class="text-danger">{{ queue_stats.get('failed', 0) }}</h4>
+                                        <small class="text-muted">Невдалі</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="text-center">
+                                <h5 class="text-info">{{ queue_stats.get('ready_for_processing', 0) }}</h5>
+                                <small class="text-muted">Готові до обробки</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">📊 Статистика по типах</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-12 mb-3">
+                                    <h6>Telegram</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Відправлено: <strong class="text-success">{{ metrics_report.performance_metrics.telegram_stats.sent }}</strong></span>
+                                        <span>Невдалі: <strong class="text-danger">{{ metrics_report.performance_metrics.telegram_stats.failed }}</strong></span>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <h6>Email</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Відправлено: <strong class="text-success">{{ metrics_report.performance_metrics.email_stats.sent }}</strong></span>
+                                        <span>Невдалі: <strong class="text-danger">{{ metrics_report.performance_metrics.email_stats.failed }}</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Аналіз помилок -->
+            {% if metrics_report.error_breakdown %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">🔍 Аналіз помилок</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Тип помилки</th>
+                                            <th>Кількість</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for error_type, count in metrics_report.error_breakdown.items() %}
+                                        <tr>
+                                            <td>{{ error_type }}</td>
+                                            <td><span class="badge bg-danger">{{ count }}</span></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Останні невдалі сповіщення -->
+            {% if failed_notifications %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">❌ Останні невдалі сповіщення</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Користувач</th>
+                                            <th>Тип</th>
+                                            <th>Спроби</th>
+                                            <th>Помилка</th>
+                                            <th>Створено</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for notification in failed_notifications %}
+                                        <tr>
+                                            <td>{{ notification.id }}</td>
+                                            <td>{{ notification.user.restaurant_name if notification.user else 'N/A' }}</td>
+                                            <td>
+                                                <span class="badge bg-secondary">{{ notification.notification_type }}</span>
+                                            </td>
+                                            <td>{{ notification.retry_count }}</td>
+                                            <td>
+                                                <small class="text-muted">
+                                                    {{ notification.error_message[:50] + '...' if notification.error_message and notification.error_message|length > 50 else notification.error_message or 'N/A' }}
+                                                </small>
+                                            </td>
+                                            <td>
+                                                <small>{{ notification.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Статистика по користувачах -->
+            {% if user_stats %}
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">👥 Топ користувачів за кількістю сповіщень</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Ресторан</th>
+                                            <th>Місто</th>
+                                            <th>Всього</th>
+                                            <th>Відправлено</th>
+                                            <th>Невдалі</th>
+                                            <th>Успішність</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for stat in user_stats %}
+                                        <tr>
+                                            <td>{{ stat.restaurant_name }}</td>
+                                            <td>{{ stat.city }}</td>
+                                            <td>{{ stat.total_notifications }}</td>
+                                            <td><span class="badge bg-success">{{ stat.sent_count or 0 }}</span></td>
+                                            <td><span class="badge bg-danger">{{ stat.failed_count or 0 }}</span></td>
+                                            <td>
+                                                {% set success_rate = ((stat.sent_count or 0) / stat.total_notifications * 100) if stat.total_notifications > 0 else 0 %}
+                                                <span class="badge {% if success_rate >= 90 %}bg-success{% elif success_rate >= 70 %}bg-warning{% else %}bg-danger{% endif %}">
+                                                    {{ "%.1f"|format(success_rate) }}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshHealth() {
+    const healthDiv = document.getElementById('system-health');
+    healthDiv.innerHTML = '<div class="spinner-border spinner-border-sm me-2" role="status"></div><span>Завантаження...</span>';
+    
+    fetch('{{ url_for("admin_notification_health") }}')
+        .then(response => response.json())
+        .then(data => {
+            let statusClass = 'success';
+            let statusIcon = 'check-circle';
+            
+            if (data.status === 'degraded') {
+                statusClass = 'warning';
+                statusIcon = 'exclamation-triangle';
+            } else if (data.status === 'unhealthy') {
+                statusClass = 'danger';
+                statusIcon = 'times-circle';
+            } else if (data.status === 'unknown') {
+                statusClass = 'secondary';
+                statusIcon = 'question-circle';
+            }
+            
+            let issuesHtml = '';
+            if (data.issues && data.issues.length > 0) {
+                issuesHtml = '<ul class="mt-2 mb-0">';
+                data.issues.forEach(issue => {
+                    issuesHtml += `<li class="small">${issue}</li>`;
+                });
+                issuesHtml += '</ul>';
+            }
+            
+            healthDiv.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-${statusIcon} text-${statusClass} me-2"></i>
+                    <span class="text-${statusClass}">Статус: ${data.status}</span>
+                </div>
+                ${issuesHtml}
+            `;
+        })
+        .catch(error => {
+            healthDiv.innerHTML = '<div class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Помилка завантаження</div>';
+        });
+}
+
+// Автоматично завантажити здоров'я при завантаженні сторінки
+document.addEventListener('DOMContentLoaded', refreshHealth);
+
+// Оновлювати здоров'я кожні 30 секунд
+setInterval(refreshHealth, 30000);
+</script>
+{% endblock %}

@@ -2,57 +2,263 @@
 
 {% block title %}Всі відгуки - {{ current_user.restaurant_name }}{% endblock %}
 
+{% block extra_css %}
+<style>
+    .review-card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        border: 1px solid #e9ecef;
+    }
+    
+    .review-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    
+    .score-badge {
+        font-size: 1.1rem;
+        font-weight: bold;
+    }
+    
+    .filter-section {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .answer-item {
+        background-color: #f8f9fa;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid #dee2e6;
+    }
+    
+    .answer-item.positive {
+        border-left-color: #28a745;
+        background-color: #d4edda;
+    }
+    
+    .answer-item.negative {
+        border-left-color: #dc3545;
+        background-color: #f8d7da;
+    }
+    
+    .search-box {
+        border-radius: 25px;
+        border: 2px solid #e9ecef;
+        padding: 0.75rem 1.5rem;
+        transition: border-color 0.3s ease;
+    }
+    
+    .search-box:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    .sort-dropdown {
+        min-width: 200px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2><i class="fas fa-list me-2"></i>Всі відгуки</h2>
-                <a href="{{ url_for('user_dashboard') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left me-1"></i>Назад до дашборду
-                </a>
+                <div>
+                    <h2><i class="fas fa-star me-2 text-warning"></i>Всі відгуки</h2>
+                    <p class="text-muted mb-0">Детальний перегляд усіх отриманих відгуків</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('user_all_comments') }}" class="btn btn-outline-info">
+                        <i class="fas fa-comments me-1"></i>Тільки коментарі
+                    </a>
+                    <a href="{{ url_for('user_export_page') }}" class="btn btn-outline-success">
+                        <i class="fas fa-download me-1"></i>Експорт
+                    </a>
+                    <a href="{{ url_for('user_dashboard') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Назад до дашборду
+                    </a>
+                </div>
             </div>
 
+            <!-- Статистика -->
             {% if survey_data %}
-                <div class="row">
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <h3 class="mb-1">{{ survey_data|length }}</h3>
+                        <small>Всього відгуків</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <h3 class="mb-1">{{ (survey_data|map(attribute='survey.overall_score')|sum / survey_data|length)|round(1) }}</h3>
+                        <small>Середня оцінка</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <h3 class="mb-1">{{ survey_data|selectattr('answers')|selectattr('answers', 'selectattr', 'comment')|list|length }}</h3>
+                        <small>З коментарями</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card text-center">
+                        <h3 class="mb-1">{{ survey_data|map(attribute='survey.waiter_name')|unique|list|length }}</h3>
+                        <small>Офіціантів</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Фільтри та пошук -->
+            <div class="filter-section">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0">
+                                <i class="fas fa-search text-muted"></i>
+                            </span>
+                            <input type="text" class="form-control search-box border-start-0" 
+                                   id="searchInput" placeholder="Пошук по офіціанту, коментарю або даті...">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select sort-dropdown" id="sortSelect">
+                            <option value="date-desc">Спочатку нові</option>
+                            <option value="date-asc">Спочатку старі</option>
+                            <option value="score-desc">Висока оцінка</option>
+                            <option value="score-asc">Низька оцінка</option>
+                            <option value="waiter">По офіціанту</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="scoreFilter">
+                            <option value="">Всі оцінки</option>
+                            <option value="high">Високі (8-10)</option>
+                            <option value="medium">Середні (5-7)</option>
+                            <option value="low">Низькі (1-4)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if survey_data %}
+                <div class="row" id="reviewsContainer">
                     {% for item in survey_data %}
-                        <div class="col-md-6 col-lg-4 mb-4">
-                            <div class="card h-100">
+                        <div class="col-md-6 col-lg-4 mb-4 review-item" 
+                             data-waiter="{{ item.survey.waiter_name|lower }}"
+                             data-score="{{ item.survey.overall_score }}"
+                             data-date="{{ item.survey.created_at.strftime('%Y-%m-%d') }}"
+                             data-comments="{{ item.answers|selectattr('comment')|map(attribute='comment')|join(' ')|lower }}">
+                            <div class="card h-100 review-card">
                                 <div class="card-header d-flex justify-content-between align-items-center">
-                                    <h6 class="mb-0">
-                                        <i class="fas fa-user me-2"></i>{{ item.survey.waiter_name }}
-                                    </h6>
-                                    <span class="badge bg-primary">{{ item.survey.overall_score }}/10</span>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-user-circle me-2 text-primary" style="font-size: 1.2rem;"></i>
+                                        <h6 class="mb-0 fw-bold">{{ item.survey.waiter_name }}</h6>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        {% set score = item.survey.overall_score %}
+                                        {% if score >= 8 %}
+                                            <span class="badge bg-success score-badge">{{ score }}/10</span>
+                                        {% elif score >= 6 %}
+                                            <span class="badge bg-warning score-badge">{{ score }}/10</span>
+                                        {% else %}
+                                            <span class="badge bg-danger score-badge">{{ score }}/10</span>
+                                        {% endif %}
+                                        
+                                        <!-- Індикатор коментарів -->
+                                        {% if item.answers|selectattr('comment')|list %}
+                                            <i class="fas fa-comment text-info" title="Є коментарі"></i>
+                                        {% endif %}
+                                    </div>
                                 </div>
                                 <div class="card-body">
-                                    <p class="text-muted small mb-3">
-                                        <i class="fas fa-calendar me-1"></i>
-                                        {{ item.survey.created_at.strftime('%d.%m.%Y %H:%M') }}
-                                    </p>
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <p class="text-muted small mb-0">
+                                            <i class="fas fa-calendar me-1"></i>
+                                            {{ item.survey.created_at.strftime('%d.%m.%Y %H:%M') }}
+                                        </p>
+                                        <div class="d-flex">
+                                            {% for i in range(1, 11) %}
+                                                {% if i <= item.survey.overall_score %}
+                                                    <i class="fas fa-star text-warning" style="font-size: 0.8rem;"></i>
+                                                {% else %}
+                                                    <i class="far fa-star text-muted" style="font-size: 0.8rem;"></i>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
 
                                     {% if item.answers %}
-                                        <h6 class="mb-2">Відповіді на питання:</h6>
-                                        {% for answer in item.answers %}
-                                            <div class="mb-2">
-                                                <div class="d-flex align-items-center mb-1">
-                                                    <strong class="me-2">{{ answer.question.question_text }}</strong>
-                                                    {% if answer.answer %}
-                                                        <span class="badge bg-success">Так</span>
-                                                    {% else %}
-                                                        <span class="badge bg-danger">Ні</span>
+                                        <div class="answers-section">
+                                            <h6 class="mb-3 d-flex align-items-center">
+                                                <i class="fas fa-clipboard-list me-2 text-secondary"></i>
+                                                Відповіді на питання
+                                            </h6>
+                                            {% for answer in item.answers %}
+                                                <div class="answer-item {% if answer.answer %}positive{% else %}negative{% endif %}">
+                                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                                        <strong class="text-dark" style="font-size: 0.9rem;">{{ answer.question.question_text }}</strong>
+                                                        {% if answer.answer %}
+                                                            <span class="badge bg-success">
+                                                                <i class="fas fa-check me-1"></i>Так
+                                                            </span>
+                                                        {% else %}
+                                                            <span class="badge bg-danger">
+                                                                <i class="fas fa-times me-1"></i>Ні
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% if answer.comment %}
+                                                        <div class="comment-section mt-2 p-2 bg-white rounded border-start border-3 {% if answer.answer %}border-success{% else %}border-danger{% endif %}">
+                                                            <div class="d-flex align-items-start">
+                                                                <i class="fas fa-quote-left text-muted me-2 mt-1" style="font-size: 0.8rem;"></i>
+                                                                <div class="flex-grow-1">
+                                                                    <p class="mb-0 text-dark" style="font-size: 0.9rem; line-height: 1.4;">{{ answer.comment }}</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     {% endif %}
                                                 </div>
-                                                {% if answer.comment %}
-                                                    <div class="text-muted small">
-                                                        <i class="fas fa-comment me-1"></i>
-                                                        {{ answer.comment }}
-                                                    </div>
-                                                {% endif %}
-                                            </div>
-                                        {% endfor %}
+                                            {% endfor %}
+                                        </div>
                                     {% else %}
-                                        <p class="text-muted">Немає відповідей на питання</p>
+                                        <div class="text-center py-3">
+                                            <i class="fas fa-question-circle text-muted mb-2" style="font-size: 2rem;"></i>
+                                            <p class="text-muted mb-0">Немає відповідей на питання</p>
+                                        </div>
                                     {% endif %}
+                                </div>
+                                
+                                <!-- Футер картки з додатковою інформацією -->
+                                <div class="card-footer bg-light">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            <i class="fas fa-hashtag me-1"></i>ID: {{ item.survey.id }}
+                                        </small>
+                                        <div class="d-flex gap-1">
+                                            {% if item.answers|selectattr('comment')|list %}
+                                                <span class="badge bg-info">
+                                                    <i class="fas fa-comments me-1"></i>{{ item.answers|selectattr('comment')|list|length }}
+                                                </span>
+                                            {% endif %}
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-list me-1"></i>{{ item.answers|length }}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -76,4 +282,93 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Елементи для фільтрації та пошуку
+    const searchInput = document.getElementById('searchInput');
+    const sortSelect = document.getElementById('sortSelect');
+    const scoreFilter = document.getElementById('scoreFilter');
+    const reviewItems = document.querySelectorAll('.review-item');
+    const reviewsContainer = document.getElementById('reviewsContainer');
+    
+    // Функція фільтрації та пошуку
+    function filterReviews() {
+        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+        const sortBy = sortSelect ? sortSelect.value : 'date-desc';
+        const scoreFilterValue = scoreFilter ? scoreFilter.value : '';
+        
+        let visibleItems = [];
+        
+        reviewItems.forEach(item => {
+            const waiter = item.dataset.waiter || '';
+            const score = parseInt(item.dataset.score) || 0;
+            const comments = item.dataset.comments || '';
+            const date = item.dataset.date || '';
+            
+            // Перевірка пошукового терміну
+            const matchesSearch = !searchTerm || 
+                waiter.includes(searchTerm) || 
+                comments.includes(searchTerm) ||
+                date.includes(searchTerm);
+            
+            // Перевірка фільтру оцінок
+            let matchesScore = true;
+            if (scoreFilterValue === 'high') {
+                matchesScore = score >= 8;
+            } else if (scoreFilterValue === 'medium') {
+                matchesScore = score >= 5 && score <= 7;
+            } else if (scoreFilterValue === 'low') {
+                matchesScore = score >= 1 && score <= 4;
+            }
+            
+            if (matchesSearch && matchesScore) {
+                item.style.display = 'block';
+                visibleItems.push(item);
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        // Сортування
+        if (sortBy && visibleItems.length > 0) {
+            visibleItems.sort((a, b) => {
+                switch(sortBy) {
+                    case 'date-desc':
+                        return new Date(b.dataset.date) - new Date(a.dataset.date);
+                    case 'date-asc':
+                        return new Date(a.dataset.date) - new Date(b.dataset.date);
+                    case 'score-desc':
+                        return parseInt(b.dataset.score) - parseInt(a.dataset.score);
+                    case 'score-asc':
+                        return parseInt(a.dataset.score) - parseInt(b.dataset.score);
+                    case 'waiter':
+                        return a.dataset.waiter.localeCompare(b.dataset.waiter);
+                    default:
+                        return 0;
+                }
+            });
+            
+            // Перевпорядкування елементів
+            visibleItems.forEach(item => {
+                reviewsContainer.appendChild(item);
+            });
+        }
+    }
+    
+    // Обробники подій
+    if (searchInput) {
+        searchInput.addEventListener('input', filterReviews);
+    }
+    
+    if (sortSelect) {
+        sortSelect.addEventListener('change', filterReviews);
+    }
+    
+    if (scoreFilter) {
+        scoreFilter.addEventListener('change', filterReviews);
+    }
+});
+</script>
+
 {% endblock %}

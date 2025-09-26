@@ -177,7 +177,7 @@ class DateFilterForm(FlaskForm):
     """Форма для фільтрації за датами"""
     start_date = StringField('Дата початку (YYYY-MM-DD)', validators=[Length(max=10)])
     end_date = StringField('Дата кінця (YYYY-MM-DD)', validators=[Length(max=10)])
-    
+
     def validate_start_date(self, start_date):
         if start_date.data:
             try:
@@ -185,7 +185,7 @@ class DateFilterForm(FlaskForm):
                 datetime.strptime(start_date.data, '%Y-%m-%d')
             except ValueError:
                 raise ValidationError('Неправильний формат дати. Використовуйте YYYY-MM-DD')
-    
+
     def validate_end_date(self, end_date):
         if end_date.data:
             try:
@@ -193,3 +193,47 @@ class DateFilterForm(FlaskForm):
                 datetime.strptime(end_date.data, '%Y-%m-%d')
             except ValueError:
                 raise ValidationError('Неправильний формат дати. Використовуйте YYYY-MM-DD')
+
+
+class AlertSettingsForm(FlaskForm):
+    """Форма для налаштування алертів"""
+    # Email налаштування
+    alert_email_enabled = BooleanField('Увімкнути email алерти', default=False)
+    alert_email = StringField('Email для алертів', 
+                             validators=[Optional(), Email(message='Введіть коректну email адресу'), Length(max=120)])
+    
+    # Telegram налаштування
+    alert_telegram_enabled = BooleanField('Увімкнути Telegram алерти', default=False)
+    alert_telegram_bot_token = StringField('Токен Telegram бота', 
+                                          validators=[Optional(), Length(max=200)],
+                                          render_kw={"placeholder": "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"})
+    alert_telegram_chat_id = StringField('ID чату Telegram', 
+                                        validators=[Optional(), Length(max=50)],
+                                        render_kw={"placeholder": "-1001234567890 або @username"})
+    
+    submit = SubmitField('Зберегти налаштування')
+    
+    def validate_alert_email(self, alert_email):
+        """Валідація email адреси для алертів"""
+        if self.alert_email_enabled.data and not alert_email.data:
+            raise ValidationError('Email адреса обов\'язкова, якщо увімкнені email алерти')
+    
+    def validate_alert_telegram_bot_token(self, alert_telegram_bot_token):
+        """Валідація токена Telegram бота"""
+        if self.alert_telegram_enabled.data and not alert_telegram_bot_token.data:
+            raise ValidationError('Токен Telegram бота обов\'язковий, якщо увімкнені Telegram алерти')
+        
+        if alert_telegram_bot_token.data:
+            # Перевірка формату токена (число:рядок)
+            if not re.match(r'^\d+:[A-Za-z0-9_-]+$', alert_telegram_bot_token.data):
+                raise ValidationError('Неправильний формат токена. Приклад: 1234567890:ABCdefGHIjklMNOpqrsTUVwxyz')
+    
+    def validate_alert_telegram_chat_id(self, alert_telegram_chat_id):
+        """Валідація ID чату Telegram"""
+        if self.alert_telegram_enabled.data and not alert_telegram_chat_id.data:
+            raise ValidationError('ID чату Telegram обов\'язковий, якщо увімкнені Telegram алерти')
+        
+        if alert_telegram_chat_id.data:
+            # Перевірка формату chat_id (число або @username)
+            if not re.match(r'^(-?\d+|@\w+)$', alert_telegram_chat_id.data):
+                raise ValidationError('Неправильний формат ID чату. Приклад: -1001234567890 або @username')

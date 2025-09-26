@@ -23,6 +23,7 @@ from logging.handlers import RotatingFileHandler
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import urllib.parse
 
 # Load environment variables
 load_dotenv()
@@ -107,9 +108,10 @@ def get_external_url(endpoint, **values):
         return url_for(endpoint, _external=True, **values)
 
 # Import models and forms first
-from models import db, User, Question, Survey, Answer, QRCode, Admin
-from forms import LoginForm, UserForm, QuestionForm, SurveyForm, DateFilterForm, BotTokenForm
+from models import db, User, Question, Survey, Answer, QRCode, Admin, NotificationSettings, NotificationQueue, AdminSettings
+from forms import LoginForm, UserForm, QuestionForm, SurveyForm, DateFilterForm, BotTokenForm, AlertSettingsForm
 from telegram_service import TelegramService, create_feedback_message
+from notification_service import NotificationService
 
 # Initialize extensions
 db.init_app(app)
@@ -118,6 +120,9 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Будь ласка, увійдіть для доступу до цієї сторінки.'
 login_manager.login_message_category = 'info'
+
+# Initialize notification service
+notification_service = NotificationService(app)
 
 def init_database():
     """Initialize the database with tables"""
@@ -523,9 +528,12 @@ def admin_export_user(user_id):
     wb.save(output)
     output.seek(0)
     
+    # Create safe filename for HTTP header
+    safe_filename = urllib.parse.quote(f'{user.restaurant_name}_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
+    
     response = make_response(output.getvalue())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename={user.restaurant_name}_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{safe_filename}'
     
     return response
 
@@ -1320,23 +1328,24 @@ def survey(token):
         
         db.session.commit()
         
-        # Send to Telegram group only
-        if user.bot_token and user.telegram_group_enabled and user.telegram_group_id:
-            telegram_service = TelegramService(user.bot_token)
+        # Send notifications using the new notification service
+        try:
+            notification_results = notification_service.add_survey_notifications(
+                user=user,
+                survey_id=survey.id,
+                message_content=telegram_message
+            )
             
-            # Send to Telegram group
-            group_result = telegram_service.send_message_to_chat(user.telegram_group_id, telegram_message)
-            if not group_result['success']:
-                print(f"Failed to send Telegram message to group for restaurant: {user.restaurant_name} (ID: {user.id}). Error: {group_result['error']}")
-                # Log the error but don't show to survey user
-        
-        # Send to Email
-        if user.email_enabled and user.email_address:
-            subject = f"Новий відгук - {user.restaurant_name}"
-            success = send_email_message(user.email_address, subject, telegram_message)
-            if not success:
-                print(f"Failed to send Email message for restaurant: {user.restaurant_name} (ID: {user.id})")
-                # Note: We don't show error to survey user, but log it for admin
+            # Log results for monitoring
+            for notification_type, success in notification_results.items():
+                if success:
+                    app.logger.info(f"Added {notification_type} notification to queue for user {user.id}")
+                else:
+                    app.logger.error(f"Failed to add {notification_type} notification to queue for user {user.id}")
+                    
+        except Exception as e:
+            app.logger.error(f"Error adding notifications to queue for user {user.id}: {e}")
+            # Don't show error to survey user, but log it for admin
         
         # Store restaurant info in session for success page
         session['success_restaurant_id'] = user.id
@@ -1601,7 +1610,16 @@ def user_all_surveys():
             'answers': answers
         })
     
-    return render_template('user/all_surveys.html', survey_data=survey_data)
+    # Get group information and admin link
+    group_name = current_user.telegram_group_name or "Не налаштовано"
+    group_link = current_user.telegram_group_link
+    admin_link = f"http://192.168.0.189:5000/admin/users/{current_user.id}"
+    
+    return render_template('user/all_surveys.html', 
+                         survey_data=survey_data,
+                         group_name=group_name,
+                         group_link=group_link,
+                         admin_link=admin_link)
 
 @app.route('/user/filters', methods=['GET', 'POST'])
 @manager_required
@@ -1853,9 +1871,12 @@ def user_export():
     wb.save(output)
     output.seek(0)
     
+    # Create safe filename for HTTP header
+    safe_filename = urllib.parse.quote(f'{current_user.restaurant_name}_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
+    
     response = make_response(output.getvalue())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename={current_user.restaurant_name}_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename*=UTF-8\'\'{safe_filename}'
     
     return response
 
@@ -2011,7 +2032,7 @@ def user_export_preview():
 def admin_export_page():
     """Сторінка з фільтрами для експорту (адмін)"""
     # Отримуємо дані для фільтрів
-    restaurants = User.query.filter(User.role.in_(['manager', 'user'])).all()
+    restaurants = User.query.filter(User.is_active == True).all()
     waiters = db.session.query(Survey.waiter_name).distinct().all()
     waiters = [w[0] for w in waiters if w[0]]
     cities = db.session.query(User.city).distinct().all()
@@ -2528,6 +2549,214 @@ def _fill_summary_worksheet_admin(ws, surveys):
         ws.cell(row=row, column=3, value=round(stats['total_rating'] / stats['count'], 2))
         row += 1
 
+# Notification Queue Management Routes
+@app.route('/admin/notifications')
+@admin_required
+def admin_notifications():
+    """Сторінка управління чергою сповіщень"""
+    try:
+        # Отримуємо статистику черги
+        stats = notification_service.get_queue_stats()
+        
+        # Отримуємо останні сповіщення
+        recent_notifications = NotificationQueue.query.order_by(
+            NotificationQueue.created_at.desc()
+        ).limit(50).all()
+        
+        return render_template('admin/notifications.html', 
+                             stats=stats, 
+                             notifications=recent_notifications)
+    except Exception as e:
+        app.logger.error(f"Error loading notifications page: {e}")
+        flash('Помилка завантаження сторінки сповіщень', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/notifications/stats')
+@admin_required
+def admin_notification_stats():
+    """API для отримання статистики черги сповіщень"""
+    try:
+        stats = notification_service.get_queue_stats()
+        return jsonify(stats)
+    except Exception as e:
+        app.logger.error(f"Error getting notification stats: {e}")
+        return jsonify({'error': 'Помилка отримання статистики'}), 500
+
+@app.route('/admin/notifications/process', methods=['POST'])
+@admin_required
+def admin_process_notifications():
+    """Ручна обробка черги сповіщень"""
+    try:
+        stats = notification_service.process_pending_notifications()
+        flash(f'Оброблено сповіщень: {stats["processed"]}, відправлено: {stats["sent"]}, помилок: {stats["failed"]}', 'success')
+    except Exception as e:
+        app.logger.error(f"Error processing notifications: {e}")
+        flash('Помилка обробки сповіщень', 'error')
+    
+    return redirect(url_for('admin_notifications'))
+
+@app.route('/admin/notifications/cleanup', methods=['POST'])
+@admin_required
+def admin_cleanup_notifications():
+    """Очищення старих сповіщень"""
+    try:
+        days = request.form.get('days', 30, type=int)
+        deleted_count = notification_service.cleanup_old_notifications(days)
+        flash(f'Видалено {deleted_count} старих сповіщень', 'success')
+    except Exception as e:
+        app.logger.error(f"Error cleaning up notifications: {e}")
+        flash('Помилка очищення сповіщень', 'error')
+    
+    return redirect(url_for('admin_notifications'))
+
+@app.route('/admin/notifications/start-processor', methods=['POST'])
+@admin_required
+def admin_start_processor():
+    """Запуск обробника черги"""
+    try:
+        notification_service.start_queue_processor()
+        flash('Обробник черги запущено', 'success')
+    except Exception as e:
+        app.logger.error(f"Error starting queue processor: {e}")
+        flash('Помилка запуску обробника черги', 'error')
+    
+    return redirect(url_for('admin_notifications'))
+
+@app.route('/admin/notifications/stop-processor', methods=['POST'])
+@admin_required
+def admin_stop_processor():
+    """Зупинка обробника черги"""
+    try:
+        notification_service.stop_queue_processor()
+        flash('Обробник черги зупинено', 'success')
+    except Exception as e:
+        app.logger.error(f"Error stopping queue processor: {e}")
+        flash('Помилка зупинки обробника черги', 'error')
+    
+    return redirect(url_for('admin_notifications'))
+
+@app.route('/admin/notifications/metrics')
+@admin_required
+def admin_notification_metrics():
+    """Сторінка метрик сповіщень для адміністратора"""
+    try:
+        # Отримуємо детальний звіт метрик
+        metrics_report = notification_service.get_metrics_report()
+        
+        # Отримуємо статистику черги
+        queue_stats = notification_service.get_queue_stats()
+        
+        # Отримуємо останні невдалі сповіщення для аналізу
+        failed_notifications = NotificationQueue.query.filter_by(
+            status='failed'
+        ).order_by(NotificationQueue.created_at.desc()).limit(10).all()
+        
+        # Отримуємо статистику по користувачах
+        user_notification_stats = db.session.query(
+            User.restaurant_name,
+            User.city,
+            func.count(NotificationQueue.id).label('total_notifications')
+        ).join(NotificationQueue, User.id == NotificationQueue.user_id)\
+         .group_by(User.id, User.restaurant_name, User.city)\
+         .order_by(func.count(NotificationQueue.id).desc())\
+         .limit(20).all()
+        
+        # Додаємо статистику відправлених та невдалих сповіщень окремо
+        user_stats_with_details = []
+        for stat in user_notification_stats:
+            # Підраховуємо відправлені сповіщення
+            sent_count = db.session.query(func.count(NotificationQueue.id)).join(User)\
+                .filter(User.restaurant_name == stat.restaurant_name, 
+                       User.city == stat.city,
+                       NotificationQueue.status == 'sent').scalar() or 0
+            
+            # Підраховуємо невдалі сповіщення  
+            failed_count = db.session.query(func.count(NotificationQueue.id)).join(User)\
+                .filter(User.restaurant_name == stat.restaurant_name,
+                       User.city == stat.city, 
+                       NotificationQueue.status == 'failed').scalar() or 0
+            
+            user_stats_with_details.append({
+                'restaurant_name': stat.restaurant_name,
+                'city': stat.city,
+                'total_notifications': stat.total_notifications,
+                'sent_count': sent_count,
+                'failed_count': failed_count
+            })
+        
+        return render_template('admin/notification_metrics.html',
+                             metrics_report=metrics_report,
+                             queue_stats=queue_stats,
+                             failed_notifications=failed_notifications,
+                             user_stats=user_stats_with_details)
+    
+    except Exception as e:
+        app.logger.error(f"Error loading notification metrics: {e}")
+        flash('Помилка завантаження метрик сповіщень', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/notifications/health')
+@admin_required
+def admin_notification_health():
+    """API endpoint для перевірки здоров'я системи сповіщень"""
+    try:
+        health_report = notification_service._get_system_health()
+        return jsonify(health_report)
+    except Exception as e:
+        app.logger.error(f"Error getting notification health: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/admin/notifications/reset-metrics', methods=['POST'])
+@admin_required
+def admin_reset_notification_metrics():
+    """Скинути метрики сповіщень"""
+    try:
+        notification_service.reset_metrics()
+        flash('Метрики сповіщень скинуто', 'success')
+    except Exception as e:
+        app.logger.error(f"Error resetting notification metrics: {e}")
+        flash('Помилка скидання метрик', 'error')
+    
+    return redirect(url_for('admin_notification_metrics'))
+
+@app.route('/admin/alert-settings', methods=['GET', 'POST'])
+@admin_required
+def admin_alert_settings():
+    """Сторінка налаштування алертів адміністратора"""
+    form = AlertSettingsForm()
+    
+    if request.method == 'GET':
+        # Завантажуємо поточні налаштування
+        current_settings = AdminSettings.get_alert_settings()
+        form.alert_email.data = current_settings.get('alert_email', '')
+        form.alert_telegram_bot_token.data = current_settings.get('alert_telegram_bot_token', '')
+        form.alert_telegram_chat_id.data = current_settings.get('alert_telegram_chat_id', '')
+        form.alert_email_enabled.data = current_settings.get('alert_email_enabled', False)
+        form.alert_telegram_enabled.data = current_settings.get('alert_telegram_enabled', False)
+    
+    if form.validate_on_submit():
+        try:
+            # Зберігаємо налаштування
+            settings = {
+                'alert_email': form.alert_email.data or '',
+                'alert_telegram_bot_token': form.alert_telegram_bot_token.data or '',
+                'alert_telegram_chat_id': form.alert_telegram_chat_id.data or '',
+                'alert_email_enabled': form.alert_email_enabled.data,
+                'alert_telegram_enabled': form.alert_telegram_enabled.data,
+            }
+            
+            AdminSettings.set_alert_settings(settings)
+            flash('Налаштування алертів збережено!', 'success')
+            return redirect(url_for('admin_alert_settings'))
+            
+        except Exception as e:
+            app.logger.error(f"Error saving alert settings: {e}")
+            flash('Помилка збереження налаштувань', 'error')
+    
+    # Завантажуємо поточні налаштування для відображення в шаблоні
+    current_settings = AdminSettings.get_alert_settings()
+    return render_template('admin/alert_settings.html', form=form, current_settings=current_settings)
+
 if __name__ == '__main__':
     print("🚀 Запуск Flask додатку...")
     
@@ -2538,6 +2767,15 @@ if __name__ == '__main__':
     else:
         print("❌ Помилка ініціалізації бази даних!")
         sys.exit(1)
+    
+    # Запуск обробника черги сповіщень
+    print("📬 Запуск обробника черги сповіщень...")
+    try:
+        notification_service.start_queue_processor()
+        print("✅ Обробник черги сповіщень запущено!")
+    except Exception as e:
+        print(f"⚠️ Помилка запуску обробника черги: {e}")
+        # Продовжуємо роботу навіть якщо обробник не запустився
     
     # Production vs Development configuration
     is_production = os.getenv('FLASK_ENV') == 'production'

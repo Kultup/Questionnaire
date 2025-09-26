@@ -1,22 +1,31 @@
-{% extends "base.html" %}
+{% extends "admin/base.html" %}
 
-{% block title %}{{ user.restaurant_name }} - {{ user.login }} - Система збору відгуків{% endblock %}
+{% block title %}{{ user.restaurant_name }} - {{ user.login }} - SurveyBridge{% endblock %}
 
 {% block content %}
+<!-- Header Section -->
 <div class="row">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>
-                <i class="fas fa-store text-primary me-2"></i>
-                {{ user.restaurant_name }}
-                <small class="text-muted">{{ user.city }}</small>
-            </h2>
             <div>
-                <a href="{{ url_for('admin_users') }}" class="btn btn-outline-secondary me-2">
+                <h2 class="mb-1">
+                    <i class="fas fa-store text-primary me-2"></i>
+                    {{ user.restaurant_name }}
+                </h2>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-map-marker-alt me-1"></i>{{ user.city }} • 
+                    <i class="fas fa-user me-1"></i>{{ user.login }} • 
+                    <span class="badge {{ 'bg-success' if user.is_active else 'bg-danger' }}">
+                        {{ 'Активний' if user.is_active else 'Неактивний' }}
+                    </span>
+                </p>
+            </div>
+            <div class="btn-group" role="group">
+                <a href="{{ url_for('admin_users') }}" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left me-1"></i>
-                    Назад до списку
+                    Назад
                 </a>
-                <a href="{{ url_for('admin_edit_user', user_id=user.id) }}" class="btn btn-warning me-2">
+                <a href="{{ url_for('admin_edit_user', user_id=user.id) }}" class="btn btn-warning">
                     <i class="fas fa-edit me-1"></i>
                     Редагувати
                 </a>
@@ -31,341 +40,429 @@
     </div>
 </div>
 
-<!-- User Info Card -->
+<!-- Quick Stats Cards -->
 <div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-user me-2"></i>
-                    Інформація про менеджера
-                </h5>
-            </div>
-            <div class="card-body">
-                <table class="table table-borderless table-sm">
-                    <tr>
-                        <td><strong>Логін:</strong></td>
-                        <td>{{ user.login }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Заклад:</strong></td>
-                        <td>{{ user.restaurant_name }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Місто:</strong></td>
-                        <td>{{ user.city }}</td>
-                    </tr>
-                    <tr>
-                        <td><strong>Статус:</strong></td>
-                        <td>
-                            {% if user.is_active %}
-                                <span class="badge bg-success">Активний</span>
-                            {% else %}
-                                <span class="badge bg-danger">Неактивний</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><strong>Створено:</strong></td>
-                        <td>
-                            {% if user.created_at %}
-                                {{ user.created_at.strftime('%d.%m.%Y %H:%M') }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td><strong>Токен бота:</strong></td>
-                        <td>
-                            {% if user.bot_token %}
-                                <code class="small">{{ user.bot_token[:8] }}...</code>
-                            {% else %}
-                                <span class="text-muted">Не генеровано</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                </table>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-comments fa-2x mb-2"></i>
+                <h3 class="mb-0">{{ user.surveys|length }}</h3>
+                <small>Всього відгуків</small>
             </div>
         </div>
     </div>
-    
-    <div class="col-md-8">
-        <!-- Statistics Cards -->
-        <div class="row">
-            <div class="col-md-3 mb-3">
-                <div class="card dashboard-card bg-primary text-white">
-                    <div class="card-body text-center">
-                        <i class="fas fa-comments fa-2x mb-2"></i>
-                        <div class="stat-number">{{ user.surveys|length }}</div>
-                        <div class="small">Всього відгуків</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-3 mb-3">
-                <div class="card dashboard-card bg-success text-white">
-                    <div class="card-body text-center">
-                        <i class="fas fa-star fa-2x mb-2"></i>
-                        <div class="stat-number">
-                            {% if user.surveys %}
-                                {% set avg = user.surveys|map(attribute='overall_score')|sum / user.surveys|length %}
-                                {{ "%.1f"|format(avg) }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </div>
-                        <div class="small">Середня оцінка</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-3 mb-3">
-                <div class="card dashboard-card bg-info text-white">
-                    <div class="card-body text-center">
-                        <i class="fas fa-question-circle fa-2x mb-2"></i>
-                        <div class="stat-number">{{ user.get_active_questions()|length }}</div>
-                        <div class="small">Активних питань</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-3 mb-3">
-                <div class="card dashboard-card bg-warning text-white">
-                    <div class="card-body text-center">
-                        <i class="fas fa-calendar-day fa-2x mb-2"></i>
-                        <div class="stat-number">{{ today_surveys }}</div>
-                        <div class="small">За сьогодні</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Charts Row -->
-{% if user.surveys %}
-<div class="row mb-4">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-chart-line me-2"></i>
-                    Динаміка відгуків
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="chart-container">
-                    <canvas id="surveysChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-chart-pie me-2"></i>
-                    Розподіл оцінок
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="chart-container">
-                    <canvas id="ratingsChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Questions and Recent Surveys -->
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-list-ul me-2"></i>
-                    Питання опитувальника ({{ user.questions|length }})
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if user.questions %}
-                    {% for question in user.questions %}
-                    <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
-                        <div>
-                            <div class="fw-bold">{{ question.question_text }}</div>
-                            <small class="text-muted">
-                                Тип: Так/Ні + коментар
-                            </small>
-                        </div>
-                        <div>
-                            {% if question.is_active %}
-                                <span class="badge bg-success">Активне</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Неактивне</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="text-center text-muted py-4">
-                        <i class="fas fa-question-circle fa-2x mb-2"></i>
-                        <div>Немає створених питань</div>
-                        <small>Менеджер може створити питання в своїй панелі</small>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-clock me-2"></i>
-                    Останні відгуки
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if user.surveys %}
-                    {% for survey in user.surveys[:5] %}
-                    <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
-                        <div>
-                            <div class="fw-bold">{{ survey.waiter_name }}</div>
-                            <small class="text-muted">
-                                {{ survey.created_at.strftime('%d.%m.%Y %H:%M') if survey.created_at else '-' }}
-                            </small>
-                        </div>
-                        <div>
-                            <span class="badge bg-primary">{{ survey.overall_score }}/10</span>
-                        </div>
-                    </div>
-                    {% endfor %}
-                    
-                    {% if user.surveys|length > 5 %}
-                    <div class="text-center mt-3">
-                        <button class="btn btn-sm btn-outline-primary" onclick="showAllSurveys()">
-                            Показати всі ({{ user.surveys|length }})
-                        </button>
-                    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-star fa-2x mb-2"></i>
+                <h3 class="mb-0">
+                    {% if user.surveys %}
+                        {% set avg = user.surveys|map(attribute='overall_score')|sum / user.surveys|length %}
+                        {{ "%.1f"|format(avg) }}
+                    {% else %}
+                        -
                     {% endif %}
-                {% else %}
-                    <div class="text-center text-muted py-4">
-                        <i class="fas fa-comments fa-2x mb-2"></i>
-                        <div>Немає відгуків</div>
-                        <small>Відгуки з'являться після заповнення форми клієнтами</small>
+                </h3>
+                <small>Середня оцінка</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-question-circle fa-2x mb-2"></i>
+                <h3 class="mb-0">{{ user.get_active_questions()|length }}</h3>
+                <small>Активних питань</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-calendar-day fa-2x mb-2"></i>
+                <h3 class="mb-0">{{ today_surveys }}</h3>
+                <small>За сьогодні</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content with Tabs -->
+<div class="card">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" id="userDetailsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Загальна інформація
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications" type="button" role="tab">
+                    <i class="fas fa-bell me-1"></i>
+                    Сповіщення
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics" type="button" role="tab">
+                    <i class="fas fa-chart-bar me-1"></i>
+                    Аналітика
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="surveys-tab" data-bs-toggle="tab" data-bs-target="#surveys" type="button" role="tab">
+                    <i class="fas fa-comments me-1"></i>
+                    Останні відгуки
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="tab-content" id="userDetailsTabContent">
+            <!-- Overview Tab -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="mb-3">
+                            <i class="fas fa-user me-2"></i>
+                            Основна інформація
+                        </h5>
+                        <table class="table table-borderless">
+                            <tr>
+                                <td width="40%"><strong>Логін:</strong></td>
+                                <td>{{ user.login }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Заклад:</strong></td>
+                                <td>{{ user.restaurant_name }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Місто:</strong></td>
+                                <td>{{ user.city }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Створено:</strong></td>
+                                <td>
+                                    {% if user.created_at %}
+                                        {{ user.created_at.strftime('%d.%m.%Y %H:%M') }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Токен бота:</strong></td>
+                                <td>
+                                    {% if user.bot_token %}
+                                        <div class="d-flex align-items-center">
+                                            <code class="small me-2" id="bot-token-display">{{ user.bot_token[:8] }}...</code>
+                                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="toggleTokenVisibility()">
+                                                <i class="fas fa-eye" id="token-eye-icon"></i>
+                                            </button>
+                                        </div>
+                                        <small class="text-muted">Натисніть на око, щоб показати повний токен</small>
+                                    {% else %}
+                                        <span class="text-muted">Не генеровано</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
                     </div>
+                    <div class="col-md-6">
+                        <h5 class="mb-3">
+                            <i class="fas fa-cog me-2"></i>
+                            Швидкі дії
+                        </h5>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('admin_edit_user', user_id=user.id) }}" class="btn btn-outline-primary">
+                                <i class="fas fa-edit me-2"></i>
+                                Редагувати профіль
+                            </a>
+                            {% if user.surveys %}
+                            <a href="{{ url_for('admin_export_user', user_id=user.id) }}" class="btn btn-outline-success">
+                                <i class="fas fa-download me-2"></i>
+                                Завантажити дані
+                            </a>
+                            {% endif %}
+                            <button class="btn btn-outline-info" onclick="showAllSurveys()">
+                                <i class="fas fa-list me-2"></i>
+                                Переглянути всі відгуки
+                            </button>
+                            {% if user.bot_token %}
+                            <a href="{{ url_for('bot_instructions') }}?token={{ user.unique_token }}" target="_blank" class="btn btn-outline-secondary">
+                                <i class="fas fa-robot me-2"></i>
+                                Інструкції для бота
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications Tab -->
+            <div class="tab-pane fade" id="notifications" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">
+                                    <i class="fab fa-telegram-plane me-2"></i>
+                                    Telegram сповіщення
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-borderless table-sm">
+                                    <tr>
+                                        <td><strong>Статус:</strong></td>
+                                        <td>
+                                            {% if user.telegram_group_enabled %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check me-1"></i>
+                                                    Увімкнено
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">
+                                                    <i class="fas fa-times me-1"></i>
+                                                    Вимкнено
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ID групи:</strong></td>
+                                        <td>
+                                            {% if user.telegram_group_id %}
+                                                <code>{{ user.telegram_group_id }}</code>
+                                            {% else %}
+                                                <span class="text-muted">Не налаштовано</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Назва групи:</strong></td>
+                                        <td>
+                                            {% if user.telegram_group_name %}
+                                                {{ user.telegram_group_name }}
+                                            {% else %}
+                                                <span class="text-muted">Не вказано</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Посилання:</strong></td>
+                                        <td>
+                                            {% if user.telegram_group_link %}
+                                                <a href="{{ user.telegram_group_link }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-external-link-alt me-1"></i>
+                                                    Відкрити
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">Не вказано</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-envelope me-2"></i>
+                                    Email сповіщення
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-borderless table-sm">
+                                    <tr>
+                                        <td><strong>Статус:</strong></td>
+                                        <td>
+                                            {% if user.email_enabled %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check me-1"></i>
+                                                    Увімкнено
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">
+                                                    <i class="fas fa-times me-1"></i>
+                                                    Вимкнено
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Email адреса:</strong></td>
+                                        <td>
+                                            {% if user.email_address %}
+                                                <a href="mailto:{{ user.email_address }}">{{ user.email_address }}</a>
+                                            {% else %}
+                                                <span class="text-muted">Не вказано</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div class="tab-pane fade" id="analytics" role="tabpanel">
+                {% if user.surveys %}
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5>Графіки відгуків</h5>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-primary active period-btn" data-period="7">7 днів</button>
+                                <button type="button" class="btn btn-outline-primary period-btn" data-period="30">30 днів</button>
+                                <button type="button" class="btn btn-outline-primary period-btn" data-period="90">90 днів</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Кількість відгуків за період</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="surveysChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Розподіл оцінок</h6>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="ratingsChart" width="200" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Немає даних для аналітики</h5>
+                    <p class="text-muted">Відгуки ще не надходили від цього користувача</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Recent Surveys Tab -->
+            <div class="tab-pane fade" id="surveys" role="tabpanel">
+                {% if user.surveys %}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5>Останні відгуки</h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showAllSurveys()">
+                        Переглянути всі
+                    </button>
+                </div>
+                
+                <div class="row">
+                    {% for survey in user.surveys[-6:] %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-0">Відгук #{{ survey.id }}</h6>
+                                    <span class="badge bg-{{ 'success' if survey.overall_score >= 4 else 'warning' if survey.overall_score >= 3 else 'danger' }}">
+                                        {{ survey.overall_score }}/5
+                                    </span>
+                                </div>
+                                <p class="text-muted small mb-2">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    {{ survey.created_at.strftime('%d.%m.%Y %H:%M') }}
+                                </p>
+                                {% if survey.comment %}
+                                <p class="card-text small">
+                                    {{ survey.comment[:100] }}{% if survey.comment|length > 100 %}...{% endif %}
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Немає відгуків</h5>
+                    <p class="text-muted">Відгуки ще не надходили від цього користувача</p>
+                </div>
                 {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- QR Code Section -->
-{% if user.bot_token %}
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-qrcode me-2"></i>
-                    QR-код для опитування
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <p class="mb-2">
-                            <strong>URL опитування:</strong>
-                            <code>{{ request.url_root }}survey/••••••••••••••••••••••••••••••••••••••••••••••</code>
-                        </p>
-                        <p class="text-muted mb-0">
-                            Клієнти можуть сканувати QR-код або перейти за посиланням для заповнення опитування.
-                            <br><small class="text-warning">Повний URL приховано з міркувань безпеки</small>
-                        </p>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        {% if user.qr_codes %}
-                            <div class="qr-code-container mb-2">
-                                <!-- QR code will be displayed here -->
-                                <div class="bg-light border rounded p-3">
-                                    <i class="fas fa-qrcode fa-3x text-muted"></i>
-                                    <div class="small mt-2">QR-код створено</div>
-                                </div>
-                            </div>
-                        {% else %}
-                            <div class="text-muted">
-                                <i class="fas fa-qrcode fa-3x mb-2"></i>
-                                <div class="small">QR-код не створено</div>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-{% endblock %}
-
-{% block extra_js %}
+<!-- Charts and JavaScript -->
 {% if user.surveys %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Chart data for this specific user
-const ctx1 = document.getElementById('surveysChart').getContext('2d');
-const surveysChart = new Chart(ctx1, {
-    type: 'line',
-    data: {
-        labels: {{ chart_labels|safe if chart_labels else '[]' }},
-        datasets: [{
-            label: 'Відгуки',
-            data: {{ chart_data|safe if chart_data else '[]' }},
-            borderColor: 'rgb(13, 110, 253)',
-            backgroundColor: 'rgba(13, 110, 253, 0.1)',
-            tension: 0.1
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-            y: {
-                beginAtZero: true
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize charts
+    const surveysCtx = document.getElementById('surveysChart').getContext('2d');
+    const ratingsCtx = document.getElementById('ratingsChart').getContext('2d');
+    
+    let surveysChart = new Chart(surveysCtx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels|tojson }},
+            datasets: [{
+                label: 'Кількість відгуків',
+                data: {{ chart_data|tojson }},
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
             }
         }
-    }
-});
-
-const ctx2 = document.getElementById('ratingsChart').getContext('2d');
-const ratingsChart = new Chart(ctx2, {
-    type: 'doughnut',
-    data: {
-        labels: ['1-3', '4-6', '7-8', '9-10'],
-        datasets: [{
-            data: {{ ratings_distribution|safe if ratings_distribution else '[0,0,0,0]' }},
-            backgroundColor: [
-                'rgb(220, 53, 69)',
-                'rgb(255, 193, 7)',
-                'rgb(25, 135, 84)',
-                'rgb(13, 110, 253)'
-            ]
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false
-    }
-});
-
-// Add period filter functionality for individual user charts
-document.addEventListener('DOMContentLoaded', function() {
-    const periodButtons = document.querySelectorAll('.period-btn');
+    });
     
+    let ratingsChart = new Chart(ratingsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['1 зірка', '2 зірки', '3 зірки', '4 зірки', '5 зірок'],
+            datasets: [{
+                data: {{ ratings_distribution|tojson }},
+                backgroundColor: [
+                    '#dc3545',
+                    '#fd7e14',
+                    '#ffc107',
+                    '#198754',
+                    '#20c997'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+    
+    // Period buttons functionality
+    const periodButtons = document.querySelectorAll('.period-btn');
     periodButtons.forEach(button => {
         button.addEventListener('click', function() {
-            const period = this.dataset.period;
+            const period = this.getAttribute('data-period');
             
             // Update active button
             periodButtons.forEach(btn => btn.classList.remove('active'));
@@ -394,6 +491,25 @@ document.addEventListener('DOMContentLoaded', function() {
 function showAllSurveys() {
     // This would open a modal or navigate to a detailed surveys page
     alert('Функція перегляду всіх відгуків буде реалізована');
+}
+
+function toggleTokenVisibility() {
+    const tokenDisplay = document.getElementById('bot-token-display');
+    const eyeIcon = document.getElementById('token-eye-icon');
+    const fullToken = '{{ user.bot_token if user.bot_token else "" }}';
+    const shortToken = '{{ user.bot_token[:8] if user.bot_token else "" }}...';
+    
+    if (tokenDisplay.textContent.includes('...')) {
+        // Show full token
+        tokenDisplay.textContent = fullToken;
+        eyeIcon.classList.remove('fa-eye');
+        eyeIcon.classList.add('fa-eye-slash');
+    } else {
+        // Show short token
+        tokenDisplay.textContent = shortToken;
+        eyeIcon.classList.remove('fa-eye-slash');
+        eyeIcon.classList.add('fa-eye');
+    }
 }
 </script>
 {% endif %}

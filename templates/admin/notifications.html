@@ -1,0 +1,328 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Управління сповіщеннями{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0 text-gray-800">
+                    <i class="fas fa-bell me-2"></i>Управління сповіщеннями
+                </h1>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-primary" onclick="refreshStats()">
+                        <i class="fas fa-sync-alt me-1"></i>Оновити
+                    </button>
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#processModal">
+                        <i class="fas fa-play me-1"></i>Обробити чергу
+                    </button>
+                </div>
+            </div>
+
+            <!-- Статистика черги -->
+            <div class="row mb-4">
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-primary shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                        Очікують обробки
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="pending-count">
+                                        {{ stats.get('pending', 0) }}
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-clock fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-success shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                        Відправлено
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="sent-count">
+                                        {{ stats.get('sent', 0) }}
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-check fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-warning shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                        Повторні спроби
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="retrying-count">
+                                        {{ stats.get('retrying', 0) }}
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-redo fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-3 col-md-6 mb-4">
+                    <div class="card border-left-danger shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                        Помилки
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800" id="failed-count">
+                                        {{ stats.get('failed', 0) }}
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Додаткова статистика -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card shadow">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Готові до обробки</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="h4 mb-0 text-gray-800" id="ready-count">
+                                {{ stats.get('ready_for_processing', 0) }}
+                            </div>
+                            <small class="text-muted">сповіщень готові до відправки</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card shadow">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">За останню годину</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="h4 mb-0 text-gray-800" id="recent-count">
+                                {{ stats.get('created_last_hour', 0) }}
+                            </div>
+                            <small class="text-muted">нових сповіщень</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Управління обробником -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Управління обробником черги</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <form method="POST" action="{{ url_for('admin_start_processor') }}" class="d-inline">
+                                <button type="submit" class="btn btn-success me-2">
+                                    <i class="fas fa-play me-1"></i>Запустити обробник
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('admin_stop_processor') }}" class="d-inline">
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-stop me-1"></i>Зупинити обробник
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#cleanupModal">
+                                <i class="fas fa-trash me-1"></i>Очистити старі записи
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Таблиця останніх сповіщень -->
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Останні сповіщення</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="notificationsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Користувач</th>
+                                    <th>Тип</th>
+                                    <th>Статус</th>
+                                    <th>Спроби</th>
+                                    <th>Створено</th>
+                                    <th>Заплановано</th>
+                                    <th>Помилка</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for notification in notifications %}
+                                <tr>
+                                    <td>{{ notification.id }}</td>
+                                    <td>
+                                        {% if notification.user %}
+                                            {{ notification.user.restaurant_name or notification.user.login }}
+                                        {% else %}
+                                            <span class="text-muted">Невідомий</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if notification.notification_type == 'telegram' %}
+                                            <span class="badge bg-info">
+                                                <i class="fab fa-telegram me-1"></i>Telegram
+                                            </span>
+                                        {% elif notification.notification_type == 'email' %}
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-envelope me-1"></i>Email
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-light text-dark">{{ notification.notification_type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if notification.status == 'pending' %}
+                                            <span class="badge bg-warning">Очікує</span>
+                                        {% elif notification.status == 'sent' %}
+                                            <span class="badge bg-success">Відправлено</span>
+                                        {% elif notification.status == 'failed' %}
+                                            <span class="badge bg-danger">Помилка</span>
+                                        {% elif notification.status == 'retrying' %}
+                                            <span class="badge bg-info">Повтор</span>
+                                        {% else %}
+                                            <span class="badge bg-light text-dark">{{ notification.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ notification.retry_count }}</td>
+                                    <td>{{ notification.created_at.strftime('%d.%m.%Y %H:%M') if notification.created_at else '-' }}</td>
+                                    <td>{{ notification.scheduled_at.strftime('%d.%m.%Y %H:%M') if notification.scheduled_at else '-' }}</td>
+                                    <td>
+                                        {% if notification.error_message %}
+                                            <span class="text-danger" title="{{ notification.error_message }}">
+                                                {{ notification.error_message[:50] }}{% if notification.error_message|length > 50 %}...{% endif %}
+                                            </span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальне вікно для обробки черги -->
+<div class="modal fade" id="processModal" tabindex="-1" aria-labelledby="processModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="processModalLabel">Обробити чергу сповіщень</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Ви впевнені, що хочете запустити ручну обробку черги сповіщень?</p>
+                <p class="text-muted">Це спробує відправити всі готові сповіщення.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
+                <form method="POST" action="{{ url_for('admin_process_notifications') }}" class="d-inline">
+                    <button type="submit" class="btn btn-primary">Обробити</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальне вікно для очищення -->
+<div class="modal fade" id="cleanupModal" tabindex="-1" aria-labelledby="cleanupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cleanupModalLabel">Очистити старі сповіщення</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin_cleanup_notifications') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="days" class="form-label">Видалити сповіщення старше (днів):</label>
+                        <input type="number" class="form-control" id="days" name="days" value="30" min="1" max="365">
+                        <div class="form-text">Будуть видалені тільки відправлені або остаточно невдалі сповіщення.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
+                    <button type="submit" class="btn btn-warning">Очистити</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshStats() {
+    fetch('{{ url_for("admin_notification_stats") }}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Error:', data.error);
+                return;
+            }
+            
+            // Оновлюємо статистику
+            document.getElementById('pending-count').textContent = data.pending || 0;
+            document.getElementById('sent-count').textContent = data.sent || 0;
+            document.getElementById('retrying-count').textContent = data.retrying || 0;
+            document.getElementById('failed-count').textContent = data.failed || 0;
+            document.getElementById('ready-count').textContent = data.ready_for_processing || 0;
+            document.getElementById('recent-count').textContent = data.created_last_hour || 0;
+        })
+        .catch(error => {
+            console.error('Error fetching stats:', error);
+        });
+}
+
+// Автоматичне оновлення кожні 30 секунд
+setInterval(refreshStats, 30000);
+
+// Ініціалізація DataTable
+$(document).ready(function() {
+    $('#notificationsTable').DataTable({
+        "order": [[ 0, "desc" ]],
+        "pageLength": 25,
+        "language": {
+            "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Ukrainian.json"
+        }
+    });
+});
+</script>
+{% endblock %}
