@@ -24,6 +24,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import urllib.parse
+import math
 
 # Load environment variables
 load_dotenv()
@@ -2757,6 +2758,30 @@ def admin_alert_settings():
     current_settings = AdminSettings.get_alert_settings()
     return render_template('admin/alert_settings.html', form=form, current_settings=current_settings)
 
+@app.route('/admin/users/<int:user_id>/surveys')
+@admin_required
+def admin_user_surveys(user_id):
+    """Перегляд усіх відгуків конкретного менеджера з пагінацією"""
+    user = User.query.get_or_404(user_id)
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+
+    query = Survey.query.filter_by(user_id=user.id).order_by(Survey.created_at.desc())
+    total = query.count()
+    surveys = query.offset((page - 1) * per_page).limit(per_page).all()
+
+    total_pages = max(1, math.ceil(total / per_page))
+
+    return render_template(
+        'admin/user_surveys.html',
+        user=user,
+        surveys=surveys,
+        page=page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages,
+    )
+
 if __name__ == '__main__':
     print("🚀 Запуск Flask додатку...")
     
@@ -2768,17 +2793,20 @@ if __name__ == '__main__':
         print("❌ Помилка ініціалізації бази даних!")
         sys.exit(1)
     
-    # Запуск обробника черги сповіщень
-    print("📬 Запуск обробника черги сповіщень...")
-    try:
-        notification_service.start_queue_processor()
-        print("✅ Обробник черги сповіщень запущено!")
-    except Exception as e:
-        print(f"⚠️ Помилка запуску обробника черги: {e}")
-        # Продовжуємо роботу навіть якщо обробник не запустився
-    
     # Production vs Development configuration
     is_production = os.getenv('FLASK_ENV') == 'production'
+
+    # Запускаємо обробник черги тільки в продакшні або в головному процесі
+    # перезавантажувача Flask (щоб уникнути дублювання потоків у DEBUG режимі)
+    should_start_processor = is_production or os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
+    if should_start_processor:
+        print("📬 Запуск обробника черги сповіщень...")
+        try:
+            notification_service.start_queue_processor()
+            print("✅ Обробник черги сповіщень запущено!")
+        except Exception as e:
+            print(f"⚠️ Помилка запуску обробника черги: {e}")
+            # Продовжуємо роботу навіть якщо обробник не запустився
     
     if is_production:
         # Production settings

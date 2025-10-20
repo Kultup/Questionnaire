@@ -13,10 +13,10 @@ def run_migration():
     db_path = os.path.join('instance', 'feedback_system.db')
     
     if not os.path.exists(db_path):
-        print(f"❌ База даних не знайдена: {db_path}")
+        print(f"DB not found: {db_path}")
         return False
     
-    print("Запуск міграції для виправлення таблиці notification_queue...")
+    print("Running migration to fix notification_queue...")
     
     try:
         conn = sqlite3.connect(db_path)
@@ -26,28 +26,28 @@ def run_migration():
         cursor.execute("PRAGMA table_info(notification_queue)")
         columns = [column[1] for column in cursor.fetchall()]
         
-        print(f"Існуючі колонки: {columns}")
+        print(f"Existing columns: {columns}")
         
         # Додаємо відсутні колонки
         if 'survey_id' not in columns:
-            print("Додавання колонки survey_id...")
+            print("Adding column survey_id...")
             cursor.execute('''
                 ALTER TABLE notification_queue 
                 ADD COLUMN survey_id INTEGER REFERENCES surveys(id)
             ''')
-            print("✅ Колонка survey_id додана")
+            print("Column survey_id added")
         
         if 'metadata_json' not in columns:
-            print("Додавання колонки metadata_json...")
+            print("Adding column metadata_json...")
             cursor.execute('''
                 ALTER TABLE notification_queue 
                 ADD COLUMN metadata_json TEXT
             ''')
-            print("✅ Колонка metadata_json додана")
+            print("Column metadata_json added")
         
         # Перейменовуємо колонку message на message_content, якщо потрібно
         if 'message' in columns and 'message_content' not in columns:
-            print("Створення нової таблиці з правильними назвами колонок...")
+            print("Creating new table with correct column names...")
             
             # Створюємо тимчасову таблицю з правильною структурою
             cursor.execute('''
@@ -85,33 +85,33 @@ def run_migration():
             # Перейменовуємо нову таблицю
             cursor.execute('ALTER TABLE notification_queue_new RENAME TO notification_queue')
             
-            print("✅ Таблиця оновлена з правильними назвами колонок")
+            print("Table renamed and updated successfully")
         
         # Створюємо індекси для продуктивності
-        print("Створення індексів...")
+        print("Creating indexes...")
         try:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_notification_queue_status ON notification_queue(status)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_notification_queue_scheduled ON notification_queue(scheduled_at)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_notification_queue_user ON notification_queue(user_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_notification_queue_survey ON notification_queue(survey_id)')
-            print("✅ Індекси створено")
+            print("Indexes created")
         except sqlite3.Error as e:
-            print(f"⚠️ Помилка при створенні індексів: {e}")
+            print(f"Index creation warning: {e}")
         
         conn.commit()
-        print("✅ Міграція завершена успішно!")
+        print("Migration completed")
         
         # Перевіряємо результат
         cursor.execute("PRAGMA table_info(notification_queue)")
         new_columns = cursor.fetchall()
-        print("Нова структура таблиці:")
+        print("New table structure:")
         for column in new_columns:
             print(f"  {column[1]} ({column[2]}) - NOT NULL: {column[3]}, DEFAULT: {column[4]}, PK: {column[5]}")
         
         return True
         
     except sqlite3.Error as e:
-        print(f"❌ Помилка міграції: {e}")
+        print(f"Migration error: {e}")
         if conn:
             conn.rollback()
         return False
@@ -122,7 +122,7 @@ def run_migration():
 if __name__ == '__main__':
     success = run_migration()
     if success:
-        print("🎉 Міграція завершена успішно!")
+        print("Migration finished successfully")
     else:
-        print("💥 Міграція не вдалася!")
+        print("Migration failed")
         exit(1)

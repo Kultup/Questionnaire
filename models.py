@@ -12,6 +12,7 @@ db = SQLAlchemy()
 class NotificationStatus(Enum):
     """Статуси сповіщень"""
     PENDING = "pending"
+    PROCESSING = "processing"
     SENT = "sent"
     FAILED = "failed"
     RETRYING = "retrying"
@@ -153,6 +154,8 @@ class NotificationQueue(db.Model):
     sent_at = db.Column(db.DateTime, nullable=True)
     error_message = db.Column(db.Text, nullable=True)
     metadata_json = db.Column(db.Text, nullable=True)  # Додаткові дані
+    dedup_key = db.Column(db.String(255), nullable=True, unique=False)  # Ключ ідемпотентності
+    locked_at = db.Column(db.DateTime, nullable=True)  # Час захоплення задачі воркером
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

@@ -100,6 +100,20 @@ class NotificationService:
             'queue_interval': self.queue_check_interval
         })
 
+    def _compute_dedup_key(self, notification_type: str, survey_id: Optional[int], metadata: Optional[Dict]) -> Optional[str]:
+        """Обчислити dedup_key для ідемпотентності (за типом і survey_id або іншим ключем)."""
+        try:
+            base = {
+                'type': notification_type,
+                'survey_id': survey_id,
+                # Дозволяємо розширення: якщо є explicit dedup_key у metadata
+                'explicit': (metadata or {}).get('dedup_key')
+            }
+            import hashlib, json as _json
+            return hashlib.sha256(_json.dumps(base, sort_keys=True).encode('utf-8')).hexdigest()[:32]
+        except Exception:
+            return None
+
     def add_notification(self, user_id: int, notification_type: str, message_content: str, 
                         survey_id: Optional[int] = None, metadata: Optional[Dict] = None) -> bool:
         """
@@ -125,11 +139,36 @@ class NotificationService:
                 'has_metadata': bool(metadata)
             })
             
+            dedup_key = self._compute_dedup_key(notification_type, survey_id, metadata)
+
+            # Перевірка ідемпотентності: якщо вже є pending/retrying для того ж dedup_key — не дублюємо
+            if dedup_key:
+                exists = NotificationQueue.query.filter(
+                    and_(
+                        NotificationQueue.dedup_key == dedup_key,
+                        NotificationQueue.notification_type == notification_type,
+                        NotificationQueue.status.in_([
+                            NotificationStatus.PENDING.value,
+                            NotificationStatus.RETRYING.value,
+                            NotificationStatus.PROCESSING.value
+                        ])
+                    )
+                ).first()
+                if exists:
+                    logger.info("Duplicate notification suppressed by dedup_key", extra={
+                        'existing_id': exists.id,
+                        'user_id': user_id,
+                        'notification_type': notification_type,
+                        'survey_id': survey_id
+                    })
+                    return True
+
             notification = NotificationQueue(
                 user_id=user_id,
                 notification_type=notification_type,
                 message_content=message_content,
                 survey_id=survey_id,
+                dedup_key=dedup_key,
                 status=NotificationStatus.PENDING.value,
                 scheduled_at=datetime.utcnow(),
                 created_at=datetime.utcnow()
@@ -216,16 +255,27 @@ class NotificationService:
         try:
             logger.debug("Starting notification processing")
             
-            # Отримуємо сповіщення готові для обробки
-            notifications = NotificationQueue.query.filter(
+            # Атомарно захоплюємо задачі: переводимо у PROCESSING з позначкою locked_at
+            now = datetime.utcnow()
+            candidates = NotificationQueue.query.filter(
                 and_(
                     NotificationQueue.status.in_([
                         NotificationStatus.PENDING.value,
                         NotificationStatus.RETRYING.value
                     ]),
-                    NotificationQueue.scheduled_at <= datetime.utcnow()
+                    NotificationQueue.scheduled_at <= now
                 )
-            ).limit(50).all()  # Обмежуємо кількість для уникнення перевантаження
+            ).order_by(NotificationQueue.scheduled_at.asc()).limit(50).all()
+
+            notifications = []
+            for n in candidates:
+                # Перевіряємо, що запис ще не заблокований або блокування протерміноване (> 10 хв)
+                lock_expired = not n.locked_at or (now - n.locked_at) > timedelta(minutes=10)
+                if n.status in [NotificationStatus.PENDING.value, NotificationStatus.RETRYING.value] and lock_expired:
+                    n.status = NotificationStatus.PROCESSING.value
+                    n.locked_at = now
+                    notifications.append(n)
+            db.session.commit()
             
             stats = {
                 'processed': 0,
@@ -261,9 +311,11 @@ class NotificationService:
                             'processing_time': notification_processing_time
                         })
                     else:
-                        # Логіка повторних спроб
+                        # Логіка повторних спроб з добовим лімітом та джитером
                         notification.retry_count += 1
-                        if notification.retry_count >= 3:
+                        # Добовий ліміт повторів
+                        max_daily_retries = 10
+                        if notification.retry_count >= notification.max_retries or notification.retry_count >= max_daily_retries:
                             notification.status = NotificationStatus.FAILED.value
                             stats['failed'] += 1
                             self.metrics.record_failure(notification.notification_type, 'max_retries_exceeded')
@@ -277,8 +329,11 @@ class NotificationService:
                             })
                         else:
                             notification.status = NotificationStatus.RETRYING.value
-                            # Експоненційна затримка: 5, 15, 45 хвилин
-                            delay_minutes = 5 * (3 ** (notification.retry_count - 1))
+                            # Експоненційна затримка з випадковим джитером
+                            import random
+                            base_minutes = 5 * (3 ** (notification.retry_count - 1))
+                            jitter = random.uniform(-0.2, 0.2)  # ±20%
+                            delay_minutes = max(1, int(base_minutes * (1 + jitter)))
                             notification.scheduled_at = datetime.utcnow() + timedelta(minutes=delay_minutes)
                             stats['retried'] += 1
                             self.metrics.record_failure(notification.notification_type, 'retry_scheduled')
@@ -293,6 +348,8 @@ class NotificationService:
                             })
                     
                     stats['processed'] += 1
+                    # Знімаємо блокування після обробки
+                    notification.locked_at = None
                     
                 except Exception as e:
                     logger.error("Error processing individual notification", extra={
@@ -520,6 +577,37 @@ class NotificationService:
                 time.sleep(self.queue_check_interval)
         
         logger.info("Queue worker thread stopped")
+
+    def acquire_distributed_lock(self, lock_key: str, ttl_seconds: int = 60) -> bool:
+        """Проста реалізація distributed lock на базі AdminSettings з TTL.
+        Підходить для одного інстансу БД. Для продакшну розгляньте Redis/DB advisory locks.
+        """
+        try:
+            from models import AdminSettings
+            import json as _json
+            now = datetime.utcnow().timestamp()
+            lock = AdminSettings.get_setting(lock_key, None)
+            if lock:
+                try:
+                    data = _json.loads(lock)
+                    if now < data.get('expires_at', 0):
+                        return False
+                except Exception:
+                    pass
+            payload = _json.dumps({'expires_at': now + ttl_seconds})
+            AdminSettings.set_setting(lock_key, payload, setting_type='json', description='Distributed lock', is_sensitive=False)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to acquire distributed lock {lock_key}: {e}")
+            return False
+
+    def release_distributed_lock(self, lock_key: str):
+        try:
+            from models import AdminSettings
+            AdminSettings.set_setting(lock_key, None, setting_type='json', description='Distributed lock', is_sensitive=False)
+        except Exception as e:
+            logger.error(f"Failed to release distributed lock {lock_key}: {e}")
+
     
     def get_queue_stats(self) -> Dict[str, int]:
         """
